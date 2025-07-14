@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web CLI Service</title>
 </head>
 <body>
 
   <h1>🖥️ Web CLI Service</h1>
-  <p>This project implements a <strong>web-based command-line interface (CLI)</strong> using <strong>FastAPI</strong> and <strong>WebSockets</strong>. It allows users to connect via a browser and run predefined or shell commands interactively—similar to a Linux terminal—with authentication, limitations, and session-based command history.</p>
+  <p>This project implements a <strong>web-based command-line interface (CLI)</strong> using <strong>FastAPI</strong> and <strong>WebSockets</strong>. It allows users to connect via a browser and interact with a terminal-like CLI that supports user authentication, role-based command restrictions, and session-based history.</p>
 
   <div class="section">
     <h2>📦 Features</h2>
     <ul>
-      <li>🔐 <strong>User Authentication</strong> via <code>users.json</code> and <code>pass.json</code></li>
+      <li>🔐 <strong>Role-Based Access Control</strong> (root, admin, operator, viewer)</li>
       <li>🧠 <strong>Command History</strong> using arrow keys (Up/Down)</li>
       <li>💻 <strong>Linux-style CLI</strong> in the browser</li>
-      <li>🧱 <strong>Modular Command System</strong> (easy to add new commands)</li>
+      <li>🧱 <strong>Modular Command System</strong> with pluggable command sets per role</li>
       <li>🌐 <strong>WebSocket Communication</strong> for real-time interaction</li>
       <li>🔁 <strong>Persistent service</strong> via <code>systemd</code></li>
       <li>🖋️ <strong>Customizable frontend</strong> (HTML/CSS/JS)</li>
@@ -27,9 +28,12 @@
     <div class="file-structure">
 /opt/webcli/
 ├── web_cli_server.py       # Main FastAPI server entry point
-├── command_processor.py    # All command logic
-├── users.json              # Stores valid usernames
-├── pass.json               # Stores usernames' hash
+├── command_processor.py    # Shared command logic
+├── admin_commands.py       # Admin-level commands
+├── operator_commands.py    # Operator-level commands
+├── viewer_commands.py      # Viewer-level commands
+├── users.json              # User metadata (userID, username, role)
+├── pass.json               # SHA-256 password hashes (userID as keys)
 └── venv/                   # Python virtual environment
 
 /etc/webcli/
@@ -76,20 +80,60 @@ WantedBy=multi-user.target
   </div>
 
   <div class="section">
-    <h2>🔐 Authentication</h2>
-    <p>Users authenticate via the web terminal. Stored in <code>users.json</code>:</p>
+    <h2>🔐 Authentication & Role Management</h2>
+    <p>Authentication is now handled using <strong>two files</strong> for better security and flexibility:</p>
+
+    <ul>
+      <li><code>users.json</code> — stores user metadata:</li>
+    </ul>
     <pre>{
-  "alice": "password1",
-  "bob": "password2"
+  "ali": {
+    "userid": 1,
+    "username": "ali",
+    "role": "admin"
+  },
+  "reza": {
+    "userid": 2,
+    "username": "reza",
+    "role": "operator"
+  },
+  "mina": {
+    "userid": 3,
+    "username": "mina",
+    "role": "viewer"
+  },
+  "root": {
+    "userid": 0,
+    "username": "root",
+    "role": "root"
+  }
 }</pre>
-    <p><strong>⚠️ Warning:</strong> Passwords are stored as plaintext by default. Secure handling is advised.</p>
+
+    <ul>
+      <li><code>pass.json</code> — stores SHA-256 password hashes by userID:</li>
+    </ul>
+    <pre>{
+  "0": "hash_of_root",
+  "1": "hash_of_ali123",
+  "2": "hash_of_reza123",
+  "3": "hash_of_mina123"
+}</pre>
+
+    <p>✅ Each user is authenticated by matching the SHA-256 hash of their password against <code>pass.json</code>.</p>
+    <p>✅ Once authenticated, users are routed to role-specific command handlers.</p>
   </div>
 
   <div class="section">
     <h2>🧩 Command System</h2>
-    <p>Define new commands in <code>command_processor.py</code> like:</p>
-    <pre>def cmd_hello(user: str) -> str:
-    return "Hello, " + user + "!"</pre>
+    <p>Commands are separated by role for secure access control:</p>
+    <ul>
+      <li><code>admin_commands.py</code> — full access to control, configuration, monitoring, and action commands</li>
+      <li><code>operator_commands.py</code> — access to monitoring and limited action/configuration commands</li>
+      <li><code>viewer_commands.py</code> — read-only access to system state and monitoring info</li>
+    </ul>
+    <p>Define commands using this pattern:</p>
+    <pre>def cmd_status(username: str) -> str:
+    return "System running normally."</pre>
   </div>
 
   <div class="section">
@@ -101,13 +145,14 @@ WantedBy=multi-user.target
   </div>
 
   <div class="section">
-    <h2>🧠 Built-in Commands</h2>
+    <h2>🧠 Built-in Commands (Example)</h2>
     <ul>
-      <li><code>help</code> — list available commands</li>
+      <li><code>help</code> — list available commands for your role</li>
       <li><code>exit</code> — end session</li>
       <li><code>uptime</code> — system uptime</li>
       <li><code>whoami</code> — current user</li>
-      <li><code>hello_10</code> — prints "hello" 10 times</li>
+      <li><code>reboot</code> — (admin only) restart the server</li>
+      <li><code>status</code> — view system status</li>
     </ul>
   </div>
 
@@ -125,8 +170,8 @@ WantedBy=multi-user.target
     <h2>🧪 Development Tips</h2>
     <ul>
       <li>Edit <code>static/index.html</code>, <code>style.css</code>, and <code>script.js</code> for frontend</li>
-      <li>Reload your browser to view changes</li>
       <li>Restart the backend service after editing Python files</li>
+      <li>Add new roles or commands in their respective modules</li>
     </ul>
   </div>
 
