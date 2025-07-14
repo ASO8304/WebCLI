@@ -1,0 +1,11 @@
+def process_command(command: str, username: str) -> str:
+    command = command.strip().lower()
+    
+    if command == "help":
+        return "Available commands: status, monitor, help, exit"
+    elif command == "monitor":
+        return "📡 Monitoring system activity..."
+    elif command == "status":
+        return "📊 System status: CPU 45%, Memory 60%"
+    else:
+        return f"❓ Unknown or unauthorized command: {command}"

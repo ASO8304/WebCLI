@@ -1,6 +1,22 @@
 {
-  "admin": "admin123",
-  "alice": "password1",
-  "bob": "hunter2"
+  "root": {
+    "userid": 0,
+    "username": "root",
+    "role": "root"
+  },
+  "ali": {
+    "userid": 1,
+    "username": "ali",
+    "role": "admin"
+  },
+  "reza": {
+    "userid": 2,
+    "username": "reza",
+    "role": "operator"
+  },
+  "mina": {
+    "userid": 3,
+    "username": "mina",
+    "role": "viewer"
+  }
 }
-
