@@ -3,48 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>🖥️ Web CLI Service</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      background-color: #f4f4f4;
-      color: #333;
-      padding: 40px;
-    }
-    h1, h2, h3 {
-      color: #2c3e50;
-    }
-    code, pre {
-      background-color: #e8e8e8;
-      padding: 4px 6px;
-      border-radius: 4px;
-      font-family: "Courier New", monospace;
-    }
-    pre {
-      padding: 10px;
-      overflow-x: auto;
-    }
-    .section {
-      margin-bottom: 40px;
-    }
-    ul {
-      list-style-type: "🚀 ";
-      padding-left: 20px;
-    }
-    .file-structure, .systemd {
-      background-color: #fdfdfd;
-      border-left: 5px solid #007acc;
-      padding: 15px;
-      font-family: monospace;
-      white-space: pre;
-    }
-    .footer {
-      margin-top: 50px;
-      font-size: 0.9em;
-      color: #777;
-    }
-  </style>
 </head>
 <body>
 
