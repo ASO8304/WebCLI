@@ -1,11 +1,13 @@
 import subprocess
+from commands import config
 
 async def cmd_config(websocket, prompt):
 
+    prompt = f"{prompt}config-mode> " 
 
     while True:
-        await websocket.send_text(f"{prompt}config-mode> ")
-        prompt = f"{prompt}config-mode> " 
+        await websocket.send_text(f"{prompt}")
+        
         command = await websocket.receive_text()
         cmd = command.strip().lower()
 
@@ -14,7 +16,7 @@ async def cmd_config(websocket, prompt):
             return True  # Go back to role handler
 
         elif cmd == "show":
-            await websocket.send_text("🔍 Current config is: {...}")
+            await config.show(websocket, prompt) 
 
         elif cmd.startswith("set "):
             await websocket.send_text(f"✅ Config updated: {cmd[4:]}")
