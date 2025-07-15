@@ -1,44 +1,90 @@
 import configparser
 import os
+import fnmatch
+import re
 
 # Directory where config files are stored
 CONFIG_DIR = "/etc/webcli"
 
-# Mapping of file names to handler function names (as strings)
+# Mapping of config file names to their edit functions
 CONFIG_MAP = {
-    "settings.test": "edit_settings_test",
-    "example.ini": "edit_example_ini",           # placeholder
-    "custom_config.json": "edit_custom_json"     # placeholder
+    "settings.test": "edit_ini_format",
+    "example.ini": "edit_example_ini",           # Placeholder
+    "custom_config.json": "edit_custom_json"     # Placeholder
 }
 
-# Main function that lists config files and dispatches to the correct editor
+
+# =======================
+# Validation Functions
+# =======================
+
+# Validators return True if value is valid, otherwise False
+def validate_boolean(value):
+    return value.lower() in {"true", "false"}
+
+def validate_integer(value):
+    return value.isdigit()
+
+def validate_path(value):
+    return "\\" not in value.strip('"')
+
+def validate_ip(value):
+    try:
+        parts = value.split(".")
+        return (
+            len(parts) == 4
+            and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts)
+        )
+    except:
+        return False
+
+# Map of patterns to validators
+PATTERN_VALIDATORS = [
+    ("*Enable", validate_boolean),
+    ("IsCat*", validate_boolean),
+    ("*Height", validate_integer),
+    ("*Age", validate_integer),
+    ("*Address", validate_path),
+    ("*IPAddress", validate_ip),
+    ("*Port", validate_integer),
+]
+
+# Look up validator for a given key using fnmatch
+def get_validator(key):
+    for pattern, validator in PATTERN_VALIDATORS:
+        if fnmatch.fnmatch(key, pattern):
+            return validator
+    return None
+
+
+
+# =======================
+# Config Menu Dispatcher
+# =======================
+
+# Main entrypoint to show config file menu
 async def show(websocket, prompt):
     if not CONFIG_MAP:
         await websocket.send_text("❌ No config files available.")
         return
 
-    # Show user the available config files
     await websocket.send_text("📄 Available config files:")
     config_files = list(CONFIG_MAP.keys())
-
     for i, filename in enumerate(config_files, 1):
         await websocket.send_text(f"{i}. {filename}")
 
     await websocket.send_text(f"{prompt}Enter number to select config file:")
 
-    # Wait for valid file selection
     while True:
         user_input = await websocket.receive_text()
         if not user_input.isdigit() or not (1 <= int(user_input) <= len(config_files)):
             await websocket.send_text("❗ Invalid selection. Try again.")
             continue
 
-        # Determine full path and function name
         selected_file = config_files[int(user_input) - 1]
         full_path = os.path.join(CONFIG_DIR, selected_file)
         handler_name = CONFIG_MAP[selected_file]
 
-        # Dispatch to the function if it exists
         if handler_name in globals():
             handler_func = globals()[handler_name]
             await handler_func(websocket, prompt, full_path)
@@ -48,17 +94,17 @@ async def show(websocket, prompt):
 
 
 
+# =======================
+# settings.test Editor (INI-style)
+# =======================
 
-
-# Handles INI-style config editing for settings.test
-async def edit_settings_test(websocket, prompt, config_path):
+async def edit_ini_format(websocket, prompt, config_path):
     if not os.path.exists(config_path):
         await websocket.send_text(f"❌ Config file not found: {config_path}")
         return
 
-    # Create configparser and preserve key case sensitivity
     parser = configparser.ConfigParser(strict=False)
-    parser.optionxform = str
+    parser.optionxform = str  # Preserve case
     parser.read(config_path)
 
     sections = parser.sections()
@@ -66,18 +112,16 @@ async def edit_settings_test(websocket, prompt, config_path):
         await websocket.send_text("⚠️ No sections found.")
         return
 
-    # Step 1: List all sections to user
+    # Show available sections
     await websocket.send_text(f"📁 Sections in {os.path.basename(config_path)}:")
     for i, section in enumerate(sections, 1):
         await websocket.send_text(f"{i}. {section}")
     await websocket.send_text(f"{prompt}Enter number to select section:")
 
-    # Step 2: Let user select a section
     while True:
         section_input = await websocket.receive_text()
         if not section_input.isdigit() or not (1 <= int(section_input) <= len(sections)):
             await websocket.send_text("❗ Invalid selection. Try again.")
-            await websocket.send_text(f"{prompt}Enter number to select section:")
             continue
         break
 
@@ -87,14 +131,12 @@ async def edit_settings_test(websocket, prompt, config_path):
         await websocket.send_text("⚠️ No keys found in this section.")
         return
 
-    # Step 3: Display all key=value pairs in that section
     await websocket.send_text(f"📂 Keys in [{selected_section}]:")
     for i, key in enumerate(options, 1):
         value = parser.get(selected_section, key)
         await websocket.send_text(f"{i}. {key} = {value}")
     await websocket.send_text(f"{prompt}Type 'edit <number>' to change a value or 'back' to return:")
 
-    # Step 4: Wait for user command ('edit N' or 'back')
     while True:
         user_input = await websocket.receive_text()
         stripped = user_input.strip().lower()
@@ -114,16 +156,21 @@ async def edit_settings_test(websocket, prompt, config_path):
                 await websocket.send_text("❗ Invalid key number.")
                 continue
 
-            # Step 5: Prompt for new value
             selected_key = options[key_index - 1]
             current_value = parser.get(selected_section, selected_key)
             await websocket.send_text(f"🔧 Editing {selected_key} (current = {current_value})")
             await websocket.send_text(f"{prompt}Enter new value for {selected_key}:")
 
             new_value = await websocket.receive_text()
+
+            # Validate if a validator exists
+            validator = get_validator(selected_key)
+            if validator and not validator(new_value):
+                await websocket.send_text(f"❌ Invalid value for {selected_key}. Please try again.")
+                continue
+
             parser.set(selected_section, selected_key, new_value)
 
-            # Step 6: Write changes to file
             try:
                 with open(config_path, "w", encoding="utf-8") as f:
                     parser.write(f)
@@ -131,25 +178,21 @@ async def edit_settings_test(websocket, prompt, config_path):
             except Exception as e:
                 await websocket.send_text(f"❌ Failed to write config: {e}")
 
-            return  # After one edit, return to config selection
+            return  # Return to config file menu after edit
 
         else:
             await websocket.send_text("❓ Invalid input. Use 'edit <number>' or 'back':")
 
 
 
+# =======================
+# Future Placeholder Handlers
+# =======================
 
-
-# Placeholder for future INI files (can reuse same logic or change)
 async def edit_example_ini(websocket, prompt, config_path):
     await websocket.send_text(f"🧪 INI editor not implemented for {config_path}")
     return
 
-
-
-
-
-# Placeholder for a future JSON config editor
 async def edit_custom_json(websocket, prompt, config_path):
     await websocket.send_text(f"📦 JSON editor not implemented for {config_path}")
     return
