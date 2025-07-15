@@ -10,7 +10,7 @@ async def show(websocket, prompt):
         return
 
     parser = configparser.ConfigParser(strict=False)
-    parser.optionxform = str  # preserve case sensitivity for keys
+    parser.optionxform = str  # preserve case sensitivity
     parser.read(CONFIG_FILE)
 
     sections = parser.sections()
@@ -24,7 +24,7 @@ async def show(websocket, prompt):
         await websocket.send_text(f"{i}. {section}")
     await websocket.send_text(f"{prompt}Enter number to select section:")
 
-    # Step 2: User selects a section
+    # Step 2: Select section
     while True:
         section_input = await websocket.receive_text()
         if not section_input.isdigit() or not (1 <= int(section_input) <= len(sections)):
@@ -39,42 +39,39 @@ async def show(websocket, prompt):
         await websocket.send_text("⚠️ No keys found in this section.")
         return
 
-    # Step 3: List keys in section
+    # Step 3: Show keys + values
     await websocket.send_text(f"📂 Keys in [{selected_section}]:")
     for i, key in enumerate(options, 1):
-        await websocket.send_text(f"{i}. {key}")
-    await websocket.send_text(f"{prompt}Enter number to view key:")
+        value = parser.get(selected_section, key)
+        await websocket.send_text(f"{i}. {key} = {value}")
+    await websocket.send_text(f"{prompt}Type 'edit <number>' to change a value or 'back' to return:")
 
-    # Step 4: User selects a key
+    # Step 4: Command loop
     while True:
-        key_input = await websocket.receive_text()
-        if not key_input.isdigit() or not (1 <= int(key_input) <= len(options)):
-            await websocket.send_text("❗ Invalid selection. Try again.")
-            await websocket.send_text(f"{prompt}Enter number to view key:")
-            continue
-        break
+        user_input = await websocket.receive_text()
+        stripped = user_input.strip().lower()
 
-    selected_key = options[int(key_input) - 1]
-    current_value = parser.get(selected_section, selected_key)
-
-    # Step 5: Show key = value
-    await websocket.send_text(f"🔎 {selected_key} = {current_value}")
-    await websocket.send_text(f"{prompt}Type 'back' or 'edit':")
-
-    # Step 6: Edit or back
-    while True:
-        action = await websocket.receive_text()
-        action = action.strip().lower()
-
-        if action == "back":
+        if stripped == "back":
             await websocket.send_text("↩️ Returning to config menu.")
             return
 
-        elif action == "edit":
-            await websocket.send_text(f"{prompt}Enter new value for {selected_key}:")
-            new_value = await websocket.receive_text()
+        elif stripped.startswith("edit "):
+            parts = stripped.split()
+            if len(parts) != 2 or not parts[1].isdigit():
+                await websocket.send_text("❗ Usage: edit <number>")
+                continue
 
-            # No escaping needed — save raw string
+            key_index = int(parts[1])
+            if not (1 <= key_index <= len(options)):
+                await websocket.send_text("❗ Invalid key number.")
+                continue
+
+            selected_key = options[key_index - 1]
+            current_value = parser.get(selected_section, selected_key)
+            await websocket.send_text(f"🔧 Editing {selected_key} (current = {current_value})")
+            await websocket.send_text(f"{prompt}Enter new value for {selected_key}:")
+
+            new_value = await websocket.receive_text()
             parser.set(selected_section, selected_key, new_value)
 
             try:
@@ -83,8 +80,8 @@ async def show(websocket, prompt):
                 await websocket.send_text(f"✅ Updated: {selected_key} = {new_value}")
             except Exception as e:
                 await websocket.send_text(f"❌ Failed to write config: {e}")
-            return
+
+            return  # Done editing — exit to config menu
 
         else:
-            await websocket.send_text("❓ Invalid input. Type 'back' or 'edit':")
-            await websocket.send_text(f"{prompt}Type 'back' or 'edit':")
+            await websocket.send_text("❓ Invalid input. Use 'edit <number>' or 'back':")
