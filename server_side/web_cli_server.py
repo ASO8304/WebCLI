@@ -3,10 +3,10 @@ import hashlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-import command_processor_admin
-import command_processor_operator
-import command_processor_viewer
-import command_processor_root
+from admin_role import command_processor_admin
+from viewer_role import command_processor_viewer
+from root_role import command_processor_root
+from operator_role import command_processor_operator
 
 app = FastAPI()
 
