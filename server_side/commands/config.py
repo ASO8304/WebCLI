@@ -3,19 +3,15 @@ import os
 
 CONFIG_FILE = "/etc/webcli/settings.test"
 
+
 async def show(websocket, prompt):
     if not os.path.exists(CONFIG_FILE):
         await websocket.send_text("❌ Config file not found.")
         return
 
     parser = configparser.ConfigParser(strict=False)
-    parser.optionxform = str  # preserve key case
-
-    try:
-        parser.read(CONFIG_FILE, encoding="utf-8")
-    except Exception as e:
-        await websocket.send_text(f"❌ Failed to parse config: {e}")
-        return
+    parser.optionxform = str  # preserve case sensitivity for keys
+    parser.read(CONFIG_FILE)
 
     sections = parser.sections()
     if not sections:
@@ -78,11 +74,10 @@ async def show(websocket, prompt):
             await websocket.send_text(f"{prompt}Enter new value for {selected_key}:")
             new_value = await websocket.receive_text()
 
-            # Update in memory
+            # No escaping needed — save raw string
             parser.set(selected_section, selected_key, new_value)
 
             try:
-                # Write back
                 with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                     parser.write(f)
                 await websocket.send_text(f"✅ Updated: {selected_key} = {new_value}")
