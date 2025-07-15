@@ -1,46 +1,27 @@
 import subprocess
 
-def cmd_help(user: str) -> str:
-    return (
-        "Available commands:\n"
-        "  help\n"
-        "  uptime\n"
-        "  whoami\n"
-        "  hello_10\n"
-        "  hello_5\n"
-        "  exit"
-    )
+async def cmd_config(websocket, prompt):
 
-def cmd_uptime(user: str) -> str:
-    return subprocess.getoutput("uptime")
 
-def cmd_whoami(user: str) -> str:
-    return subprocess.getoutput("whoami")
+    while True:
+        await websocket.send_text(f"{prompt}config-mode> ")
+        prompt = f"{prompt}config-mode> " 
+        command = await websocket.receive_text()
+        cmd = command.strip().lower()
 
-def cmd_hello_10(user: str) -> str:
-    return subprocess.getoutput("bash -c 'for i in {1..10}; do echo hello; done'")
+        if cmd == "back":
+            await websocket.send_text("↩️ Returning to previous menu.")
+            return True  # Go back to role handler
 
-def cmd_hello_5(user: str) -> str:
-    return subprocess.getoutput("bash -c 'for i in {1..5}; do echo hello; done'")
+        elif cmd == "show":
+            await websocket.send_text("🔍 Current config is: {...}")
 
-def cmd_exit(user: str) -> str:
-    return "exit"
+        elif cmd.startswith("set "):
+            await websocket.send_text(f"✅ Config updated: {cmd[4:]}")
 
-# Map command names to function names
-COMMAND_MAP = {
-    "help": cmd_help,
-    "uptime": cmd_uptime,
-    "whoami": cmd_whoami,
-    "hello_10": cmd_hello_10,
-    "hello_5": cmd_hello_5,
-    "exit": cmd_exit,
-}
+        elif cmd == "exit":
+            await websocket.send_text("👋 Exiting session.")
+            return False  # Ends entire session
 
-def process_command(command: str, user: str = "guest") -> str:
-    command = command.strip().lower()
-    func = COMMAND_MAP.get(command)
-    if func:
-        return func(user)
-    else:
-        return f"Unknown command: {command}"
-
+        else:
+            await websocket.send_text("❓ Unknown config command. Use 'show', 'set <key=value>', 'back', or 'exit'.")

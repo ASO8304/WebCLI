@@ -7,16 +7,22 @@ let historyIndex = -1;
 let inputLine = null;
 
 socket.onopen = () => {
-  appendLine("Connecting to server...");
+  appendLine("🔌 Connecting to server...");
 };
 
 socket.onmessage = (event) => {
-  appendLine(event.data);
-  createInputLine();
+  const msg = event.data;
+
+  if (msg.startsWith(">>>PROMPT:")) {
+    const promptText = msg.slice(10); // Remove special prefix
+    createInputLine(promptText);
+  } else {
+    appendLine(msg);
+  }
 };
 
 socket.onclose = () => {
-  appendLine("Disconnected from server.");
+  appendLine("❌ Disconnected from server.");
 };
 
 function appendLine(text) {
@@ -27,8 +33,9 @@ function appendLine(text) {
   terminal.scrollTop = terminal.scrollHeight;
 }
 
-function createInputLine() {
+function createInputLine(promptText = "") {
   if (inputLine) {
+    // Disable the previous input
     inputLine.querySelector("input").disabled = true;
   }
 
@@ -37,7 +44,7 @@ function createInputLine() {
 
   const prompt = document.createElement("span");
   prompt.className = "prompt";
-  prompt.textContent = "$ ";
+  prompt.textContent = promptText;
 
   const input = document.createElement("input");
   input.className = "input";
@@ -57,7 +64,7 @@ function createInputLine() {
       if (command) {
         history.push(command);
         historyIndex = history.length;
-        socket.send(command);
+        socket.send(command); // ✅ Let server respond; do not echo here
       }
     } else if (e.key === "ArrowUp") {
       if (historyIndex > 0) {

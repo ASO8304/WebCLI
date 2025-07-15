@@ -9,8 +9,9 @@ from root_role import command_processor_root
 from operator_role import command_processor_operator
 
 app = FastAPI()
+prefix = ">>>PROMPT:"
 
-# Load users and password hashes
+# Load user info
 with open("/etc/webcli/users.json", "r") as f:
     USERS = json.load(f)
 
@@ -29,62 +30,54 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def get_processor(role: str):
-    if role == "admin":
-        return command_processor_admin
-    elif role == "operator":
-        return command_processor_operator
-    elif role == "viewer":
-        return command_processor_viewer
-    elif role == "root":
-        return command_processor_root
-    return None
+    return {
+        "admin": command_processor_admin,
+        "operator": command_processor_operator,
+        "viewer": command_processor_viewer,
+        "root": command_processor_root
+    }.get(role)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-
     try:
-        await websocket.send_text("Enter your username:")
-        username = await websocket.receive_text()
-
-        await websocket.send_text("Enter your password:")
-        password = await websocket.receive_text()
-
-        if username not in USERS:
-            await websocket.send_text("❌ User not found. Closing connection.")
-            await websocket.close()
-            return
-
-        user = USERS[username]
-        userid = user["userid"]
-        role = user["role"]
-
-        hashed_input = hash_password(password)
-        stored_hash = PASS_HASHES.get(str(userid))
-
-        if stored_hash != hashed_input:
-            await websocket.send_text("❌ Authentication failed. Closing connection.")
-            await websocket.close()
-            return
-
-        await websocket.send_text(f"✅ Welcome {username}! Your role is '{role}'. Type 'help' for available commands.")
-
-        processor = get_processor(role)
-        if processor is None:
-            await websocket.send_text("❌ Unknown role. Closing connection.")
-            await websocket.close()
-            return
-
         while True:
-            command = await websocket.receive_text()
+            # --- LOGIN ---
+            await websocket.send_text(f"{prefix}Enter your username: ")
+            username = await websocket.receive_text()
 
-            if command.strip().lower() == "exit":
-                await websocket.send_text("👋 Goodbye!")
-                await websocket.close()
-                break
+            await websocket.send_text(f"{prefix}Enter your password: ")
+            password = await websocket.receive_text()
 
-            result = processor.process_command(command, username)
-            await websocket.send_text(result)
+            if username not in USERS:
+                await websocket.send_text("❌ User not found.")
+                continue
+
+            user = USERS[username]
+            userid = user["userid"]
+            role = user["role"]
+            hashed_input = hash_password(password)
+            stored_hash = PASS_HASHES.get(str(userid))
+
+            if stored_hash != hashed_input:
+                await websocket.send_text("❌ Authentication failed.")
+                continue
+
+            await websocket.send_text(f"✅ Welcome {username}! Your role is '{role}'.")
+
+            processor = get_processor(role)
+            if processor is None or not hasattr(processor, "handle_session"):
+                await websocket.send_text("❌ Unknown role or invalid module.")
+                continue
+
+            # --- HAND OVER SESSION ---
+            should_logout = await processor.handle_session(websocket, username)
+
+            if not should_logout:
+                await websocket.send_text("Session ended.")
+                break  # Close socket
+            else:
+                await websocket.send_text("🔄 Logged out. Returning to login.\n")
 
     except WebSocketDisconnect:
         print(f"🔌 User '{username if 'username' in locals() else 'unknown'}' disconnected.")
