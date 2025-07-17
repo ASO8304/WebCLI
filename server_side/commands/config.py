@@ -73,7 +73,7 @@ async def show(websocket, prompt):
     for i, filename in enumerate(config_files, 1):
         await websocket.send_text(f"{i}. {filename}")
 
-    await websocket.send_text(f"{prompt}Enter number to select config file:")
+    await websocket.send_text(f"{prompt}Enter number to select config file: ")
 
     while True:
         user_input = await websocket.receive_text()
@@ -116,7 +116,7 @@ async def edit_ini_format(websocket, prompt, config_path):
     await websocket.send_text(f"📁 Sections in {os.path.basename(config_path)}:")
     for i, section in enumerate(sections, 1):
         await websocket.send_text(f"{i}. {section}")
-    await websocket.send_text(f"{prompt}Enter number to select section:")
+    await websocket.send_text(f"{prompt}Enter number to select section: ")
 
     while True:
         section_input = await websocket.receive_text()
@@ -135,7 +135,7 @@ async def edit_ini_format(websocket, prompt, config_path):
     for i, key in enumerate(options, 1):
         value = parser.get(selected_section, key)
         await websocket.send_text(f"{i}. {key} = {value}")
-    await websocket.send_text(f"{prompt}Type 'edit <number>' to change a value or 'back' to return:")
+    await websocket.send_text(f"{prompt}Type 'edit <number>' to change a value or 'back' to return: ")
 
     while True:
         user_input = await websocket.receive_text()
@@ -159,7 +159,7 @@ async def edit_ini_format(websocket, prompt, config_path):
             selected_key = options[key_index - 1]
             current_value = parser.get(selected_section, selected_key)
             await websocket.send_text(f"🔧 Editing {selected_key} (current = {current_value})")
-            await websocket.send_text(f"{prompt}Enter new value for {selected_key}:")
+            await websocket.send_text(f"{prompt}Enter new value for {selected_key}: ")
 
             new_value = await websocket.receive_text()
 

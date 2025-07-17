@@ -14,11 +14,31 @@ socket.onmessage = (event) => {
   const msg = event.data;
 
   if (msg.startsWith(">>>PROMPT:")) {
-    const promptText = msg.slice(10); // Remove special prefix
+    const promptText = msg.slice(10);
     createInputLine(promptText);
+  } else if (msg.startsWith("__AUTOCOMPLETE__:")) {
+  const suggestion = msg.slice(17).trim();
+  console.log("🧠 Received autocomplete:", suggestion);
+
+  if (suggestion.startsWith("[REPLACE]")) {
+    const newValue = suggestion.slice(9);
+    const input = inputLine.querySelector("input");
+    input.value = newValue;
+    console.log("🔁 Replacing input with:", newValue);
+  } else if (suggestion.startsWith("[MATCHES]")) {
+    const matches = suggestion.slice(9).trim();
+    if (matches) {
+      appendLine(matches);
+    } else {
+      terminal.style.backgroundColor = "#331111";
+      setTimeout(() => terminal.style.backgroundColor = "", 100);
+    }
   } else {
-    appendLine(msg);
+    appendLine("❓ No autocomplete suggestions.");
   }
+} else {
+  appendLine(msg);
+}
 };
 
 socket.onclose = () => {
@@ -35,7 +55,6 @@ function appendLine(text) {
 
 function createInputLine(promptText = "") {
   if (inputLine) {
-    // Disable the previous input
     inputLine.querySelector("input").disabled = true;
   }
 
@@ -61,10 +80,12 @@ function createInputLine(promptText = "") {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       const command = input.value.trim();
+      console.log(command);
+
       if (command) {
         history.push(command);
         historyIndex = history.length;
-        socket.send(command); // ✅ Let server respond; do not echo here
+        socket.send(command);
       }
     } else if (e.key === "ArrowUp") {
       if (historyIndex > 0) {
@@ -81,6 +102,13 @@ function createInputLine(promptText = "") {
         input.value = "";
       }
       e.preventDefault();
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      setTimeout(() => {
+        const currentInput = input.value.trim();
+        console.log("Sending TAB for:", currentInput);
+        socket.send(`__TAB__:${currentInput}`);
+      }, 0); // Ensures we get the latest typed value
     }
   });
 
