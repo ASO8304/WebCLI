@@ -1,4 +1,4 @@
-from commands import command_control
+from shared_commands import command_control
 
 async def handle_session(websocket, username):
     

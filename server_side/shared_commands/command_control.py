@@ -1,5 +1,5 @@
 import subprocess
-from commands import config
+from shared_commands import config
 
 async def cmd_config(websocket, prompt):
 

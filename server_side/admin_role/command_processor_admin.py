@@ -1,4 +1,4 @@
-from commands import command_control
+from shared_commands import command_control
 
 COMMANDS = ["help", "signout", "do_something", "config", "consent"]
 
@@ -31,10 +31,6 @@ async def handle_session(websocket, username):
         elif cmd == "help":
             await websocket.send_text("🛠 Available commands: " + ", ".join(COMMANDS))
             
-
-        elif cmd == "do_something":
-            await websocket.send_text(f"✅ Hello {username}, doing admin task...")
-
         elif cmd == "config":
             await websocket.send_text("🔧 Entering config mode...")
             should_return = await command_control.cmd_config(websocket, prompt)

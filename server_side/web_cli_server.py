@@ -11,13 +11,6 @@ from operator_role import command_processor_operator
 app = FastAPI()
 prefix = ">>>PROMPT:"
 
-# Load user info
-with open("/etc/webcli/users.json", "r") as f:
-    USERS = json.load(f)
-
-with open("/etc/webcli/pass.json", "r") as f:
-    PASS_HASHES = json.load(f)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Lock this down in production
@@ -48,6 +41,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
             await websocket.send_text(f"{prefix}Enter your password: ")
             password = await websocket.receive_text()
+
+            # Load user info
+            with open("/etc/webcli/users.json", "r") as f:
+                USERS = json.load(f)
+
+            with open("/etc/webcli/pass.json", "r") as f:
+                PASS_HASHES = json.load(f)
 
             if username not in USERS:
                 await websocket.send_text("❌ User not found.")
