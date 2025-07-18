@@ -37,12 +37,14 @@ async def cmd_list(websocket, args):
     await websocket.send_text(msg)
 
 async def cmd_add(websocket, args):
+    if len(args) != 0:
+        await websocket.send_text("❌ Usage: userctl add")
+        return
     try:
         users = load_users()
         passwords = load_passwords()
         usernames = {user['username'] for user in users.values()}
 
-        # Username
         while True:
             await websocket.send_text(">>>PROMPT:Enter new username: ")
             username = await websocket.receive_text()
@@ -54,7 +56,6 @@ async def cmd_add(websocket, args):
             else:
                 break
 
-        # Password
         await websocket.send_text(">>>PROMPT:Enter password: ")
         password1 = await websocket.receive_text()
         await websocket.send_text(">>>PROMPT:Re-enter password: ")
@@ -63,12 +64,10 @@ async def cmd_add(websocket, args):
         if None in (password1, password2):
             await websocket.send_text("❌ Password input failed. Aborting.")
             return
-
         if password1 != password2:
             await websocket.send_text("❌ Passwords do not match. Aborting.")
             return
 
-        # Role
         await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")
         while True:
             role = await websocket.receive_text()
@@ -82,7 +81,6 @@ async def cmd_add(websocket, args):
             else:
                 break
 
-        # Create user
         new_userid = max(int(u['userid']) for u in users.values()) + 1
         users[username] = {
             "userid": new_userid,
@@ -116,7 +114,7 @@ async def cmd_delete(websocket, args):
         return
 
     role = user["role"]
-    await websocket.send_text(f"❗ Are you sure you want to delete user '{username}' with role '{role}'? [y/N]: ")
+    await websocket.send_text(f">>>PROMPT:Are you sure you want to delete user '{username}' with role '{role}'? [y/N]: ")
     confirm = await websocket.receive_text()
 
     if confirm.strip().lower() != "y":
@@ -131,7 +129,6 @@ async def cmd_delete(websocket, args):
     save_passwords(passwords)
 
     await websocket.send_text(f"🗑️ User '{username}' deleted.")
-
 
 async def cmd_edit(websocket, args):
     if len(args) != 1:
@@ -150,11 +147,10 @@ async def cmd_edit(websocket, args):
     userid = str(user["userid"])
     role = user["role"]
     await websocket.send_text(f"📝 Editing user '{username}' (Role: {role})")
-    await websocket.send_text("What do you want to edit?\n1. Password\n2. Role\n3. Cancel\n>>>PROMPT:Enter choice [1/2/3]: ")
+    await websocket.send_text(">>>PROMPT:What do you want to edit?\n1. Password\n2. Role\n3. Cancel\n>>>PROMPT:Enter choice [1/2/3]: ")
 
     choice = await websocket.receive_text()
     if choice == "1":
-        # Password edit
         await websocket.send_text(">>>PROMPT:Enter new password: ")
         new_pw1 = await websocket.receive_text()
         await websocket.send_text(">>>PROMPT:Re-enter new password: ")
@@ -170,7 +166,6 @@ async def cmd_edit(websocket, args):
         await websocket.send_text(f"🔑 Password for user '{username}' updated.")
 
     elif choice == "2":
-        # Role edit
         await websocket.send_text(f">>>PROMPT:Enter new role ({'/'.join(VALID_ROLES)}): ")
         while True:
             new_role = await websocket.receive_text()
@@ -187,14 +182,13 @@ async def cmd_edit(websocket, args):
         await websocket.send_text("❎ Edit canceled.")
 
 
-# Dispatcher map
+# Subcommand dispatcher map with expected arg counts
 SUBCOMMANDS = {
-    "list": cmd_list,
-    "add": cmd_add,
-    "del": cmd_delete,   # ✅ Added
-    "edit": cmd_edit     # ✅ Added
+    "list": (cmd_list, 0),
+    "add": (cmd_add, 0),
+    "del": (cmd_delete, 1),
+    "edit": (cmd_edit, 1)
 }
-
 
 async def handle_userctl(websocket, full_command: str):
     tokens = full_command.strip().split()
@@ -206,10 +200,21 @@ async def handle_userctl(websocket, full_command: str):
     subcommand = tokens[1]
     args = tokens[2:]
 
-    handler = SUBCOMMANDS.get(subcommand)
-    if handler is None:
+    handler_info = SUBCOMMANDS.get(subcommand)
+    if handler_info is None:
         await websocket.send_text(f"❌ Unknown subcommand '{subcommand}'.")
         await websocket.send_text("ℹ️ Available subcommands: " + ", ".join(SUBCOMMANDS.keys()))
+        return
+
+    handler, expected_arg_count = handler_info
+    if len(args) != expected_arg_count:
+        usage_map = {
+            "list": "userctl list",
+            "add": "userctl add",
+            "del": "userctl del <username>",
+            "edit": "userctl edit <username>"
+        }
+        await websocket.send_text(f"❌ Usage: {usage_map[subcommand]}")
         return
 
     await handler(websocket, args)
