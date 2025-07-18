@@ -2,6 +2,7 @@ import configparser
 import os
 import fnmatch
 import re
+from shared_commands.validators import *  
 
 # Directory where config files are stored
 CONFIG_DIR = "/etc/webcli"
@@ -14,45 +15,10 @@ CONFIG_MAP = {
 }
 
 
-# =======================
-# Validation Functions
-# =======================
-
-# Validators return True if value is valid, otherwise False
-def validate_boolean(value):
-    return value.lower() in {"true", "false"}
-
-def validate_integer(value):
-    return value.isdigit()
-
-def validate_path(value):
-    return "\\" not in value.strip('"')
-
-def validate_ip(value):
-    try:
-        parts = value.split(".")
-        return (
-            len(parts) == 4
-            and all(part.isdigit() and 0 <= int(part) <= 255 for part in parts)
-        )
-    except:
-        return False
-
-# Map of patterns to validators
-PATTERN_VALIDATORS = [
-    ("*Enable", validate_boolean),
-    ("IsCat*", validate_boolean),
-    ("*Height", validate_integer),
-    ("*Age", validate_integer),
-    ("*Address", validate_path),
-    ("*IPAddress", validate_ip),
-    ("*Port", validate_integer),
-]
-
 # Look up validator for a given key using fnmatch
 def get_validator(key):
-    for pattern, validator in PATTERN_VALIDATORS:
-        if fnmatch.fnmatch(key, pattern):
+    for param, validator in PARAM_VALIDATORS.items():
+        if fnmatch.fnmatch(key, param):
             return validator
     return None
 
@@ -73,7 +39,7 @@ async def show(websocket, prompt):
     for i, filename in enumerate(config_files, 1):
         await websocket.send_text(f"{i}. {filename}")
 
-    await websocket.send_text(f"{prompt}Enter number to select config file: ")
+    await websocket.send_text(f"{prompt}\nEnter number to select config file: ")
 
     while True:
         user_input = await websocket.receive_text()
@@ -116,7 +82,7 @@ async def edit_ini_format(websocket, prompt, config_path):
     await websocket.send_text(f"📁 Sections in {os.path.basename(config_path)}:")
     for i, section in enumerate(sections, 1):
         await websocket.send_text(f"{i}. {section}")
-    await websocket.send_text(f"{prompt}Enter number to select section: ")
+    await websocket.send_text(f">>>PROMPT:Enter number to select section: ")
 
     while True:
         section_input = await websocket.receive_text()
@@ -135,9 +101,9 @@ async def edit_ini_format(websocket, prompt, config_path):
     for i, key in enumerate(options, 1):
         value = parser.get(selected_section, key)
         await websocket.send_text(f"{i}. {key} = {value}")
-    await websocket.send_text(f"{prompt}Type 'edit <number>' to change a value or 'back' to return: ")
 
     while True:
+        await websocket.send_text(f">>>PROMPT:Type 'edit <number>' to change a value or 'back' to return: ")
         user_input = await websocket.receive_text()
         stripped = user_input.strip().lower()
 
@@ -159,16 +125,16 @@ async def edit_ini_format(websocket, prompt, config_path):
             selected_key = options[key_index - 1]
             current_value = parser.get(selected_section, selected_key)
             await websocket.send_text(f"🔧 Editing {selected_key} (current = {current_value})")
-            await websocket.send_text(f"{prompt}Enter new value for {selected_key}: ")
+            await websocket.send_text(f">>>PROMPT:Enter new value for {selected_key}: ")
 
             new_value = await websocket.receive_text()
 
             # Validate if a validator exists
             validator = get_validator(selected_key)
             if validator and not validator(new_value):
-                await websocket.send_text(f"❌ Invalid value for {selected_key}. Please try again.")
+                await websocket.send_text(f"Invalid value for {selected_key}. Please try again.")
                 continue
-
+            
             parser.set(selected_section, selected_key, new_value)
 
             try:
@@ -179,9 +145,6 @@ async def edit_ini_format(websocket, prompt, config_path):
                 await websocket.send_text(f"❌ Failed to write config: {e}")
 
             return  # Return to config file menu after edit
-
-        else:
-            await websocket.send_text("❓ Invalid input. Use 'edit <number>' or 'back':")
 
 
 

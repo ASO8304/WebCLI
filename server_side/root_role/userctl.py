@@ -44,7 +44,7 @@ async def cmd_add(websocket, args):
 
         # Username
         while True:
-            await websocket.send_text(">>>PROMPT:Enter new username:")
+            await websocket.send_text(">>>PROMPT:Enter new username: ")
             username = await websocket.receive_text()
             if username is None:
                 await websocket.send_text("❌ Username input failed. Aborting.")
@@ -55,9 +55,9 @@ async def cmd_add(websocket, args):
                 break
 
         # Password
-        await websocket.send_text(">>>PROMPT:Enter password:")
+        await websocket.send_text(">>>PROMPT:Enter password: ")
         password1 = await websocket.receive_text()
-        await websocket.send_text(">>>PROMPT:Re-enter password:")
+        await websocket.send_text(">>>PROMPT:Re-enter password: ")
         password2 = await websocket.receive_text()
 
         if None in (password1, password2):
@@ -69,7 +69,7 @@ async def cmd_add(websocket, args):
             return
 
         # Role
-        await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer):")
+        await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")
         while True:
             role = await websocket.receive_text()
             if role is None:
@@ -78,7 +78,7 @@ async def cmd_add(websocket, args):
             role = role.lower()
             if role not in VALID_ROLES:
                 await websocket.send_text("⚠️ Invalid role. Choose from: admin, operator, viewer.")
-                await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer):")
+                await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")
             else:
                 break
 

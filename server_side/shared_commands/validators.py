@@ -39,5 +39,5 @@ PARAM_VALIDATORS = {
     "ChannelIPAddress": validate_ip,
     "DogAddress": validate_path,
     "Name": validate_string,
-    "Weather": validate_string,
+    "Weather": validate_integer,
 }
