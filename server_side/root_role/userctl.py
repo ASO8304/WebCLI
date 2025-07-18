@@ -101,12 +101,100 @@ async def cmd_add(websocket, args):
         await websocket.send_text(f"❌ Server error: {str(e)}")
         return
 
+async def cmd_delete(websocket, args):
+    if len(args) != 1:
+        await websocket.send_text("❌ Usage: userctl del <username>")
+        return
+
+    username = args[0]
+    users = load_users()
+    passwords = load_passwords()
+
+    user = users.get(username)
+    if not user:
+        await websocket.send_text(f"❌ User '{username}' not found.")
+        return
+
+    role = user["role"]
+    await websocket.send_text(f"❗ Are you sure you want to delete user '{username}' with role '{role}'? [y/N]: ")
+    confirm = await websocket.receive_text()
+
+    if confirm.strip().lower() != "y":
+        await websocket.send_text("❎ Deletion canceled.")
+        return
+
+    userid = str(user["userid"])
+    users.pop(username)
+    passwords.pop(userid, None)
+
+    save_users(users)
+    save_passwords(passwords)
+
+    await websocket.send_text(f"🗑️ User '{username}' deleted.")
+
+
+async def cmd_edit(websocket, args):
+    if len(args) != 1:
+        await websocket.send_text("❌ Usage: userctl edit <username>")
+        return
+
+    username = args[0]
+    users = load_users()
+    passwords = load_passwords()
+
+    user = users.get(username)
+    if not user:
+        await websocket.send_text(f"❌ User '{username}' not found.")
+        return
+
+    userid = str(user["userid"])
+    role = user["role"]
+    await websocket.send_text(f"📝 Editing user '{username}' (Role: {role})")
+    await websocket.send_text("What do you want to edit?\n1. Password\n2. Role\n3. Cancel\n>>>PROMPT:Enter choice [1/2/3]: ")
+
+    choice = await websocket.receive_text()
+    if choice == "1":
+        # Password edit
+        await websocket.send_text(">>>PROMPT:Enter new password: ")
+        new_pw1 = await websocket.receive_text()
+        await websocket.send_text(">>>PROMPT:Re-enter new password: ")
+        new_pw2 = await websocket.receive_text()
+
+        if new_pw1 != new_pw2:
+            await websocket.send_text("❌ Passwords do not match. Aborting.")
+            return
+
+        password_hash = hashlib.sha256(new_pw1.encode()).hexdigest()
+        passwords[userid] = password_hash
+        save_passwords(passwords)
+        await websocket.send_text(f"🔑 Password for user '{username}' updated.")
+
+    elif choice == "2":
+        # Role edit
+        await websocket.send_text(f">>>PROMPT:Enter new role ({'/'.join(VALID_ROLES)}): ")
+        while True:
+            new_role = await websocket.receive_text()
+            if new_role not in VALID_ROLES:
+                await websocket.send_text("⚠️ Invalid role. Try again.")
+                await websocket.send_text(f">>>PROMPT:Enter new role ({'/'.join(VALID_ROLES)}): ")
+            else:
+                break
+        user["role"] = new_role
+        save_users(users)
+        await websocket.send_text(f"👤 Role for user '{username}' updated to '{new_role}'.")
+
+    else:
+        await websocket.send_text("❎ Edit canceled.")
+
+
 # Dispatcher map
 SUBCOMMANDS = {
     "list": cmd_list,
     "add": cmd_add,
-    # future: "delete": cmd_delete, ...
+    "del": cmd_delete,   # ✅ Added
+    "edit": cmd_edit     # ✅ Added
 }
+
 
 async def handle_userctl(websocket, full_command: str):
     tokens = full_command.strip().split()
