@@ -1,7 +1,7 @@
-from shared_commands import command_control
-from shared_commands.tcpdump import handle_tcpdump 
-from root_role.userctl import handle_userctl
 import getpass
+from core.command_control import cmd_config           
+from core.tcpdump_runner import handle_tcpdump 
+from core.userctl_runner import handle_userctl 
 
 # 🔧 Define the full command tree structure
 COMMAND_TREE = {
@@ -52,7 +52,7 @@ async def autocomplete_handler(partial_command: str):
     return suggestions
 
 
-async def handle_session(websocket, username):
+async def root_handler(websocket, username):
     await websocket.send_text(f"🔐 Backend is running as user: {getpass.getuser()}")
 
     role = "root"
@@ -86,7 +86,7 @@ async def handle_session(websocket, username):
 
         elif cmd == "config":
             await websocket.send_text("🔧 Entering config mode...")
-            should_return = await command_control.cmd_config(websocket)
+            should_return = await cmd_config(websocket)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")

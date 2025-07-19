@@ -1,4 +1,4 @@
-from shared_commands import command_control
+from core import command_control
 
 # 👇 Replaces flat COMMANDS list
 COMMAND_TREE = {
@@ -39,7 +39,7 @@ async def autocomplete_handler(partial_command: str):
     return suggestions
 
 # 🚀 Main session loop
-async def handle_session(websocket, username):
+async def admin_handler(websocket, username):
     role = "admin"
     prompt = f">>>PROMPT:{username}--({role})$ "
 

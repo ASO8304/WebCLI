@@ -1,5 +1,5 @@
 import subprocess
-from shared_commands import config
+from core import config_manager
 
 async def cmd_config(websocket, prompt):
 
@@ -16,7 +16,7 @@ async def cmd_config(websocket, prompt):
             return True  # Go back to role handler
 
         elif cmd == "show":
-            await config.show(websocket, prompt) 
+            await config_manager.show(websocket, prompt) 
 
         elif cmd.startswith("set "):
             await websocket.send_text(f"✅ Config updated: {cmd[4:]}")

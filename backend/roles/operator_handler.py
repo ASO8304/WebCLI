@@ -1,6 +1,6 @@
-from shared_commands import command_control
+from core import command_control
 
-async def handle_session(websocket, username):
+async def operator_handler(websocket, username):
     
     role = "operator"
     prompt = f">>>PROMPT:({role})$ "  # Example: (admin)$

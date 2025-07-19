@@ -9,14 +9,15 @@
 # p = Permitted (the cap is allowed at all)
 
 ### setfacl -m u:webcli:x /usr/bin/tcpdump
+
 import asyncio
 
 # Predefined safe tcpdump commands (you can add more filters later)
 PREDEFINED_COMMANDS = {
     "default": ["/usr/bin/tcpdump", "-i", "wlo1", "-l"],
-    "http": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "80", "-c", "10"],
-    "https": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "443", "-c", "10"],
-    "dns": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "53", "-c", "10"],
+    "http": ["//usr/bin/tcpdump", "-i", "any", "-n", "port", "80", "-l"],
+    "https": ["/usr/bin/tcpdump", "-i", "any", "-n", "port", "443", "-l"],
+    "dns": ["/usr/bin/tcpdump", "-i", "any", "-n", "port", "53", "-l"],
 }
 
 

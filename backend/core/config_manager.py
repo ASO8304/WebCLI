@@ -2,7 +2,7 @@ import configparser
 import os
 import fnmatch
 import re
-from shared_commands.validators import *  
+from core.validators import *  
 
 # Directory where config files are stored
 CONFIG_DIR = "/etc/webcli"

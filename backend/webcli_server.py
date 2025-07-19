@@ -3,10 +3,11 @@ import hashlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from admin_role import command_processor_admin
-from viewer_role import command_processor_viewer
-from root_role import command_processor_root
-from operator_role import command_processor_operator
+from roles.root_handler import root_handler
+from roles.admin_handler import admin_handler
+from roles.operator_handler import operator_handler
+from roles.viewer_handler import viewer_handler
+
 
 app = FastAPI()
 prefix = ">>>PROMPT:"
@@ -24,10 +25,10 @@ def hash_password(password: str) -> str:
 
 def get_processor(role: str):
     return {
-        "admin": command_processor_admin,
-        "operator": command_processor_operator,
-        "viewer": command_processor_viewer,
-        "root": command_processor_root
+        "admin": admin_handler,
+        "operator": operator_handler,
+        "viewer": viewer_handler,
+        "root": root_handler
     }.get(role)
 
 @app.websocket("/ws")
@@ -66,12 +67,12 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_text(f"✅ Welcome {username}! Your role is '{role}'.")
 
             processor = get_processor(role)
-            if processor is None or not hasattr(processor, "handle_session"):
+            if processor is None :
                 await websocket.send_text("❌ Unknown role or invalid module.")
                 continue
 
             # --- HAND OVER SESSION ---
-            should_logout = await processor.handle_session(websocket, username)
+            should_logout = await processor(websocket, username)
 
             if not should_logout:
                 await websocket.send_text("Session ended.")
