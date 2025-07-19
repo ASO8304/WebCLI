@@ -3,9 +3,10 @@
 set -e  # Exit on error
 
 # --- Configuration ---
-APP_NAME="web_cli_server"
+APP_NAME="webcli_server"
 USERNAME="webcli"
 APP_DIR="/opt/webcli"
+LOG_DIR="/var/log/webcli"
 VENV_DIR="$APP_DIR/venv"
 SERVICE_FILE_NAME="webcli.service"
 SOURCE_FILES="web_cli_server.py command_processor.py"
@@ -42,18 +43,46 @@ chown -R $USERNAME:$USERNAME "$APP_DIR"
 echo "Creating systemd service..."
 cat <<EOF > /etc/systemd/system/$SERVICE_FILE_NAME
 [Unit]
-Description=Web CLI FastAPI WebSocket Service
-After=network.target
+Description=Web CLI Server                 # Description of the service
+After=network.target                       # Ensure the service starts after the network is up
 
 [Service]
-User=$USERNAME
-WorkingDirectory=$APP_DIR
+User=$USERNAME                             # User that will run the service
+Group=$USERNAME                            # Group under which the service runs
+WorkingDirectory=$APP_DIR                  # Working directory where the app resides
 ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 0.0.0.0 --port 8000
-Restart=on-failure
-RestartSec=5s
+                                           # Command to start the FastAPI app using Uvicorn
+
+# --- Capabilities section ---
+
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+                                           # Grants required capabilities to the service:
+                                           # - CAP_NET_RAW: Required by tcpdump for raw packet capture
+                                           # - CAP_NET_ADMIN: For more advanced network access (e.g., interface config, capture filtering)
+                                           # - CAP_NET_BIND_SERVICE: Allows binding to ports <1024 (e.g., port 80/443 if needed)
+
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+                                           # Restricts the service to only the listed capabilities (dropping all others)
+
+# --- Security hardening section ---
+
+ProtectSystem=full                         # Mounts /usr, /boot, and /etc as read-only to protect system integrity
+ReadWritePaths=/etc/webcli                 # Allows write access to this path (used for app logs/config if needed)
+ProtectHome=yes                            # Prevents access to users' home directories
+NoNewPrivileges=true                       # Ensures the process and children can't gain new privileges (recommended for security)
+
+PrivateTmp=false                           # Disable private /tmp to allow packet tools like tcpdump to work properly
+PrivateDevices=false                       # Required to access real network devices (e.g., eth0, wlo1) for packet capture
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+                                           # Restricts socket creation to only required families:
+                                           # - AF_UNIX: Local IPC
+                                           # - AF_INET/AF_INET6: IPv4/IPv6 communication
+                                           # - AF_NETLINK: For kernel networking messages
+                                           # - AF_PACKET: Required for raw socket access used by tcpdump
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target                 # Makes the service start at boot under standard multi-user mode
 EOF
 
 # --- Set ownership and permissions for service file ---

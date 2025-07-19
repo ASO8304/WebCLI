@@ -18,5 +18,30 @@
     "userid": 3,
     "username": "mina",
     "role": "viewer"
+  },
+  "abbas": {
+    "userid": 4,
+    "username": "abbas",
+    "role": "admin"
+  },
+  "abcd": {
+    "userid": 6,
+    "username": "abcd",
+    "role": "admin"
+  },
+  "viewer": {
+    "userid": 7,
+    "username": "viewer",
+    "role": "viewer"
+  },
+  "admin": {
+    "userid": 8,
+    "username": "admin",
+    "role": "admin"
+  },
+  "dad": {
+    "userid": 9,
+    "username": "dad",
+    "role": "operator"
   }
 }

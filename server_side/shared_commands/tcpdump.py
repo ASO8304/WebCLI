@@ -1,6 +1,3 @@
-import asyncio
-import shlex
-
 ### ls -hal $(which tcpdump)
 ####-rwxr-xr-x 1 root root 1.3M Feb  8  2024 /usr/bin/tcpdump
 
@@ -12,38 +9,44 @@ import shlex
 # p = Permitted (the cap is allowed at all)
 
 ### setfacl -m u:webcli:x /usr/bin/tcpdump
+import asyncio
+
+# Predefined safe tcpdump commands (you can add more filters later)
+PREDEFINED_COMMANDS = {
+    "default": ["/usr/bin/tcpdump", "-i", "wlo1", "-l"],
+    "http": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "80", "-c", "10"],
+    "https": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "443", "-c", "10"],
+    "dns": ["/opt/webcli/tcpdump_wrapper.sh", "-i", "any", "-n", "port", "53", "-c", "10"],
+}
 
 
+async def handle_tcpdump(websocket, cmd: str):
+    tokens = cmd.strip().split()
+    keyword = tokens[1] if len(tokens) > 1 else "default"
 
-async def handle_tcpdump(websocket, cmd):
-    await websocket.send_text("📡 Attempting to run tcpdump...")
-    
+    tcpdump_cmd = PREDEFINED_COMMANDS.get(keyword)
+
+    if not tcpdump_cmd:
+        await websocket.send_text(
+            f"❌ Unknown tcpdump profile '{keyword}'. Available: {', '.join(PREDEFINED_COMMANDS)}"
+        )
+        return
+
+    await websocket.send_text(f"🐾 Running: {' '.join(tcpdump_cmd)}\n(Collecting packets...)\n")
+
     try:
-        # Test basic command execution first
-        test_cmd = ["/usr/bin/id"]
         process = await asyncio.create_subprocess_exec(
-            *test_cmd,
+            *tcpdump_cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.STDOUT
         )
-        stdout, stderr = await process.communicate()
-        await websocket.send_text(f"👤 User context: {stdout.decode().strip()}")
-        
-        # Now try tcpdump with minimal options
-        command = ["/usr/bin/tcpdump", "-c", "3", "-i", "lo"]  # Use loopback first
-        process = await asyncio.create_subprocess_exec(
-            *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        
-        if stdout:
-            await websocket.send_text(f"ℹ️ tcpdump version: {stdout.decode().strip()}")
-        if stderr:
-            await websocket.send_text(f"⚠️ stderr: {stderr.decode().strip()}")
-        
-        await websocket.send_text("✅ Basic tcpdump check completed.")
-        
+
+        async for line in process.stdout:
+            await websocket.send_text(line.decode().rstrip())
+
+        await process.wait()
+
+    except FileNotFoundError:
+        await websocket.send_text("❌ tcpdump not found on this system.")
     except Exception as e:
-        await websocket.send_text(f"❌ Debug error: {str(e)}")
+        await websocket.send_text(f"⚠️ Error running tcpdump: {e}")

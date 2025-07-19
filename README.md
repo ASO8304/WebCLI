@@ -1,97 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>🖥️ Web CLI Service</title>
+  <style>
+    body { font-family: sans-serif; line-height: 1.6; padding: 20px; background: #f5f5f5; }
+    pre { background: #eee; padding: 10px; overflow-x: auto; }
+    code { background: #eef; padding: 2px 4px; }
+    h1, h2 { color: #333; }
+    ul { margin-top: 0; }
+  </style>
 </head>
 <body>
 
   <h1>🖥️ Web CLI Service</h1>
-  <p>This project implements a <strong>web-based command-line interface (CLI)</strong> using <strong>FastAPI</strong> and <strong>WebSockets</strong>. It allows users to connect via a browser and interact with a terminal-like CLI that supports user authentication, role-based command restrictions, and session-based history.</p>
+  <p>
+    A <strong>web-based command-line interface</strong> built with 
+    <strong>FastAPI</strong> and <strong>WebSockets</strong>, 
+    letting users run a restricted Linux-style shell in their browser.
+  </p>
 
   <h2>📦 Features</h2>
   <ul>
-    <li>🔐 <strong>Role-Based Access Control</strong> (root, admin, operator, viewer)</li>
-    <li>🧠 <strong>Command History</strong> using arrow keys (Up/Down)</li>
-    <li>💻 <strong>Linux-style CLI</strong> in the browser</li>
-    <li>🧱 <strong>Modular Command System</strong> with pluggable command sets per role</li>
-    <li>🌐 <strong>WebSocket Communication</strong> for real-time interaction</li>
-    <li>🔁 <strong>Persistent service</strong> via <code>systemd</code></li>
-    <li>🖋️ <strong>Customizable frontend</strong> (HTML/CSS/JS)</li>
+    <li>🔐 <strong>Role-Based Access Control:</strong> root, admin, operator, viewer</li>
+    <li>🧠 <strong>Command History:</strong> Up/Down arrow navigation</li>
+    <li>💻 <strong>Terminal UI:</strong> HTML/CSS/JS “green on black” terminal</li>
+    <li>⚙️ <strong>Modular Commands:</strong> Separate processors per role</li>
+    <li>🌐 <strong>Real-Time WebSocket:</strong> Low-latency I/O between client & server</li>
+    <li>🐾 <strong>Secure tcpdump:</strong> Direct `/usr/bin/tcpdump` with Linux capabilities</li>
+    <li>🛡️ <strong>Sandboxing & Hardening:</strong> systemd with capabilities + ACLs</li>
+    <li>🔁 <strong>Always-On Service:</strong> systemd unit for automatic startup</li>
   </ul>
 
   <h2>🗂️ Project Structure</h2>
-  <pre>/opt/webcli/
-├── web_cli_server.py       # Main FastAPI server entry point
-├── command_processor.py    # Shared command logic
-├── admin_commands.py       # Admin-level commands
-├── operator_commands.py    # Operator-level commands
-├── viewer_commands.py      # Viewer-level commands
-└── venv/                   # Python virtual environment
+  <pre>
+/client_side/
+├── frontend.html        # Browser terminal UI (HTML)
+├── style.css            # Terminal styling (wider, monospace)
+└── script.js            # WebSocket + input handling
 
-/etc/webcli/
-├── users.json              # User metadata (userID, username, role)
-└── pass.json               # SHA-256 password hashes (userID as keys)
+/server_side/
+├── admin_role/
+│   └── command_processor_admin.py
+├── operator_role/
+│   └── command_processor_operator.py
+├── root_role/
+│   ├── command_processor_root.py
+│   └── userctl.py
+├── shared_commands/
+│   ├── command_control.py
+│   ├── config.py
+│   ├── tcpdump.py           # Direct tcpdump integration
+│   └── validators.py
+├── viewer_role/
+│   └── command_processor_viewer.py
+├── web_cli_server.py       # FastAPI + WebSocket entrypoint
+├── users.json              # User → {id, role} mappings
+├── pass.json               # SHA-256 password hashes by userID
+└── test.py                 # Unit & integration tests
   </pre>
 
-  <h2>⚙️ Systemd Service</h2>
-  <p>A <code>systemd</code> service to start the CLI automatically at boot:</p>
-  <pre>[Unit]
-Description=Web CLI FastAPI WebSocket Service
-After=network.target
-
-[Service]
-User=webcli
-WorkingDirectory=/opt/webcli
-ExecStart=/opt/webcli/venv/bin/uvicorn web_cli_server:app --host 0.0.0.0 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-  </pre>
-
-  <h2>🚀 Setup Instructions</h2>
+  <h2>⚙️ Setup & Installation</h2>
   <ol>
-    <li>Run the setup script:</li>
-    <pre>chmod +x setup_webcli.sh
-./setup_webcli.sh</pre>
-    <li>This will:
-      <ul>
-        <li>Create a system user <code>webcli</code></li>
-        <li>Copy files to <code>/opt/webcli</code></li>
-        <li>Set up Python venv and install dependencies</li>
-        <li>Deploy and start the <code>systemd</code> service</li>
-      </ul>
+    <li>Clone the repo and enter it:
+      <pre>git clone https://… && cd webcli</pre>
+    </li>
+    <li>Run the installer (creates <code>webcli</code> user, venv, systemd service):
+      <pre>chmod +x install.sh
+./install.sh</pre>
+    </li>
+    <li>Verify systemd status:
+      <pre>systemctl status webcli</pre>
     </li>
   </ol>
 
-  <h2>🔐 Authentication & Role Management</h2>
-  <p>Authentication is now handled using <strong>two files</strong> for better security and flexibility:</p>
-
-  <ul>
-    <li><code>users.json</code> — stores user metadata:</li>
-  </ul>
-  <pre>{
-  "ali":   { "userid": 1, "username": "ali",   "role": "admin" },
-  "reza":  { "userid": 2, "username": "reza",  "role": "operator" },
-  "mina":  { "userid": 3, "username": "mina",  "role": "viewer" },
-  "root":  { "userid": 0, "username": "root",  "role": "root" }
-}
+  <h2>🚀 Usage</h2>
+  <p>Open your browser at <code>http://&lt;host&gt;:8000</code>, log in, and you’ll see a Linux-style prompt:</p>
+  <pre>
+(root)$ help
+… available commands …
+(root)$ tcpdump       # runs predefined tcpdump on interface wlo1, line-buffered
+(root)$ tcpdump http  # captures 10 HTTP packets on port 80
   </pre>
 
+  <h2>🛡️ Security & Hardening</h2>
   <ul>
-    <li><code>pass.json</code> — stores SHA-256 password hashes by userID:</li>
+    <li><strong>/usr/bin/tcpdump</strong> has <code>cap_net_raw,cap_net_admin+eip</code> via <code>setcap</code>.</li>
+    <li><code>chmod 750</code> + <code>setfacl -m u:webcli:x</code> ensure only <code>webcli</code> can execute it.</li>
+    <li><strong>systemd</strong> unit grants only:
+      <code>CAP_NET_RAW</code>, <code>CAP_NET_ADMIN</code>, <code>CAP_NET_BIND_SERVICE</code>.<br>
+      <code>RestrictAddressFamilies</code> includes <code>AF_PACKET</code> for packet capture.</li>
+    <li><code>NoNewPrivileges=true</code>, <code>ProtectSystem=full</code>, <code>ProtectHome=yes</code>, etc.</li>
   </ul>
-  <pre>{
-  "0": "hash_of_root",
-  "1": "hash_of_ali123",
-  "2": "hash_of_reza123",
-  "3": "hash_of_mina123"
-}
-  </pre>
 
-  <p>✅ Each user is authenticated by matching the SHA-256 hash of their password against <code>pass.json</code>.</p>
-  <p>✅ Once authenticated, users are routed to role-specific command handlers.</p>
+  <h2>🔄 Customization</h2>
+  <ul>
+    <li>Add new tcpdump profiles in <code>shared_commands/tcpdump.py</code></li>
+    <li>Modify CSS in <code>client_side/style.css</code> for different terminal themes</li>
+    <li>Extend command sets per role under <code>server_side/<em>&lt;role&gt;_role/</em></code></li>
+  </ul>
 
+  <p>Enjoy your new browser-based CLI! 🚀</p>
 </body>
 </html>
