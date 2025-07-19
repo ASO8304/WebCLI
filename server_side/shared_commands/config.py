@@ -39,9 +39,11 @@ async def show(websocket, prompt):
     for i, filename in enumerate(config_files, 1):
         await websocket.send_text(f"{i}. {filename}")
 
-    await websocket.send_text(f"{prompt}\nEnter number to select config file: ")
+    
 
     while True:
+        await websocket.send_text(f">>>PROMPT:Enter number to select config file: ")
+        
         user_input = await websocket.receive_text()
         if not user_input.isdigit() or not (1 <= int(user_input) <= len(config_files)):
             await websocket.send_text("❗ Invalid selection. Try again.")

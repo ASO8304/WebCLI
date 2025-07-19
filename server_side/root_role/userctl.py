@@ -2,8 +2,9 @@ import json
 import hashlib
 import asyncio
 
-USERS_FILE = "/etc/webcli/users.json"
-PASS_FILE = "/etc/webcli/pass.json"
+FILE_DIR = "/etc/webcli"
+USERS_FILE = f"{FILE_DIR}/users.json"
+PASS_FILE = f"{FILE_DIR}/pass.json"
 VALID_ROLES = ["admin", "operator", "viewer"]
 
 def load_users():
@@ -74,7 +75,7 @@ async def cmd_add(websocket, args):
             if role is None:
                 await websocket.send_text("❌ Role input failed. Aborting.")
                 return
-            role = role.lower()
+            role = role.lower() 
             if role not in VALID_ROLES:
                 await websocket.send_text("⚠️ Invalid role. Choose from: admin, operator, viewer.")
                 await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")

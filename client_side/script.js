@@ -108,7 +108,7 @@ function createInputLine(promptText = "") {
         const currentInput = input.value.trim();
         console.log("Sending TAB for:", currentInput);
         socket.send(`__TAB__:${currentInput}`);
-      }, 0); // Ensures we get the latest typed value
+      }, 0);
     }
   });
 
