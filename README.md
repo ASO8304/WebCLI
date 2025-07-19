@@ -3,14 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>🖥️ Web CLI Service</title>
-  <style>
-    body { font-family: sans-serif; line-height: 1.6; padding: 20px; background: #f5f5f5; }
-    pre { background: #eee; padding: 10px; overflow-x: auto; }
-    code { background: #eef; padding: 2px 4px; }
-    h1, h2 { color: #333; }
-    ul { margin-top: 0; }
-  </style>
 </head>
 <body>
 
