@@ -67,14 +67,53 @@
     </li>
   </ol>
 
-  <h2>🚀 Usage</h2>
-  <p>Open your browser at <code>http://&lt;host&gt;:8000</code>, log in, and you’ll see a Linux-style prompt:</p>
-  <pre>
+    <h2>🚀 Usage</h2>
+  <ol>
+    <li>
+      Navigate to the <code>scripts/</code> directory, make <code>install.sh</code> executable, and run it:
+      <pre>
+cd scripts
+chmod +x install.sh
+./install.sh
+      </pre>
+    </li>
+
+    <li>
+      After installation, check that the <code>webcli</code> service is running.
+      Look for <code>active (running)</code> in green:
+      <pre>
+systemctl status webcli
+      </pre>
+    </li>
+
+    <li>
+      Copy the HTML client UI from the config directory to your home folder:
+      <pre>
+cp /etc/webcli/index.html ~/webcli_ui.html
+chown &lt;your_username&gt;: ~/webcli_ui.html
+chmod 640 ~/webcli_ui.html
+      </pre>
+      <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
+    </li>
+
+    <li>
+      Open the HTML file using your browser:
+      <pre>
+xdg-open ~/webcli_ui.html
+      </pre>
+      <p>Or manually open it via your file manager.</p>
+    </li>
+
+    <li>
+      You’ll see a browser-based Linux terminal UI. Log in and try:
+      <pre>
 (root)$ help
-… available commands …
-(root)$ tcpdump       # runs predefined tcpdump on interface wlo1, line-buffered
-(root)$ tcpdump http  # captures 10 HTTP packets on port 80
-  </pre>
+(root)$ tcpdump
+(root)$ tcpdump http
+      </pre>
+    </li>
+  </ol>
+
 
   <h2>🛡️ Security & Hardening</h2>
   <ul>
