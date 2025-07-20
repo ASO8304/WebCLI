@@ -73,7 +73,7 @@ systemctl status webcli</pre>
     </li>
   </ol>
 
-    <h2>🚀 Usage</h2>
+  <h2>🚀 Usage</h2>
 
 <p>You can use the Web CLI in two different ways:</p>
 
