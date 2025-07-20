@@ -3,7 +3,7 @@
 set -e  # Exit on error
 
 # --- Configuration ---
-APP_NAME="webcli_service"
+APP_NAME="webcli_server"
 USERNAME="webcli"
 APP_DIR="/opt/webcli"
 CONF_DIR="/etc/webcli"
