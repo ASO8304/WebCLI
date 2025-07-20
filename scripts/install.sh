@@ -73,7 +73,7 @@ sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard]"
 # --- Copy backend code ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "📁 Copying backend project files..."
-cp -rv "$SCRIPT_DIR/../backend" "$APP_DIR/"
+cp -rv "$SCRIPT_DIR/../backend/*" "$APP_DIR/"
 chown -R "$USERNAME:$USERNAME" "$APP_DIR"
 
 # --- Copy config files ---
