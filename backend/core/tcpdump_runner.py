@@ -14,7 +14,7 @@ import asyncio
 
 # Predefined safe tcpdump commands (you can add more filters later)
 PREDEFINED_COMMANDS = {
-    "default": ["/usr/bin/tcpdump", "-i", "wlo1", "-l"],
+    "default": ["/usr/bin/tcpdump", "-i", "any", "-l"],
     "http": ["//usr/bin/tcpdump", "-i", "any", "-n", "port", "80", "-l"],
     "https": ["/usr/bin/tcpdump", "-i", "any", "-n", "port", "443", "-l"],
     "dns": ["/usr/bin/tcpdump", "-i", "any", "-n", "port", "53", "-l"],
