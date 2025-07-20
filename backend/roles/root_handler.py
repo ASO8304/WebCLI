@@ -86,7 +86,7 @@ async def root_handler(websocket, username):
 
         elif cmd == "config":
             await websocket.send_text("🔧 Entering config mode...")
-            should_return = await cmd_config(websocket)
+            should_return = await cmd_config(websocket, prompt)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")

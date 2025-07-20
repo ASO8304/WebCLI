@@ -12,138 +12,96 @@ VENV_DIR="$APP_DIR/venv"
 SERVICE_FILE_NAME="webcli.service"
 PYTHON_BIN="/usr/bin/python3.10"  # Adjust if needed
 
+# --- Validate Python binary exists ---
+if [ ! -x "$PYTHON_BIN" ]; then
+  echo "❌ Python binary not found at $PYTHON_BIN"
+  exit 1
+fi
+
 # --- Create a new system user ---
 echo "Creating user '$USERNAME' (if not exists)..."
-id -u $USERNAME &>/dev/null || useradd -m -s /bin/nologin $USERNAME
+id -u "$USERNAME" &>/dev/null || useradd --system -m -s /bin/nologin "$USERNAME"
 
 # --- Create application directories ---
-echo "Creating application directory at '$APP_DIR'..."
-mkdir -pv "$APP_DIR"
-chmod 700 "$APP_DIR"
+echo "Creating application, config, and log directories..."
+mkdir -pv "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
 
-mkdir -pv "$CONF_DIR"
-chmod 700 "$CONF_DIR"
+# --- Set ownership and permissions BEFORE venv creation ---
+echo "Setting ownership and permissions on app, config, and log directories..."
+chown -R "$USERNAME:$USERNAME" "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
+chmod 750 "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
 
-mkdir -pv "$LOG_DIR"
-chmod 700 "$LOG_DIR"
+# Ensure full write and execute for user recursively on APP_DIR before venv
+chmod -R u+rwX "$APP_DIR"
+
+# --- Remove any existing virtual environment to avoid permission issues ---
+if [ -d "$VENV_DIR" ]; then
+  echo "Removing existing virtual environment at $VENV_DIR"
+  rm -rf "$VENV_DIR"
+fi
 
 # --- Set up Python virtual environment ---
 echo "Creating virtual environment..."
-sudo -u $USERNAME $PYTHON_BIN -m venv "$VENV_DIR"
+sudo -u "$USERNAME" "$PYTHON_BIN" -m venv "$VENV_DIR"
 
 # --- Activate venv and install dependencies ---
 echo "Installing Python packages..."
-sudo -u $USERNAME "$VENV_DIR/bin/pip" install --upgrade pip
-sudo -u $USERNAME "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard]"
+sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install --upgrade pip
+sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard]"
 
 # --- Copy project files ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Copying webcli service files to $APP_DIR..."
-cp -rv ../backend "$APP_DIR/"
-chown -R $USERNAME:$USERNAME "$APP_DIR"
+cp -rv "$SCRIPT_DIR/../backend" "$APP_DIR/"
+chown -R "$USERNAME:$USERNAME" "$APP_DIR"
 
-# --- Set ownership for created directories ---
-echo "Setting ownership of $APP_DIR to '$USERNAME:$USERNAME'..."
-chown -R $USERNAME:$USERNAME "$APP_DIR"
-
-echo "Setting ownership of $CONF_DIR to '$USERNAME:$USERNAME'..."
-chown -R $USERNAME:$USERNAME "$CONF_DIR"
-
-echo "Setting ownership of $LOG_DIR to '$USERNAME:$USERNAME'..."
-chown -R $USERNAME:$USERNAME "$LOG_DIR"
+# --- Set ownership for config and log directories again (just in case) ---
+echo "Ensuring ownership of configuration and log directories..."
+chown -R "$USERNAME:$USERNAME" "$CONF_DIR" "$LOG_DIR"
 
 # --- Create systemd service file ---
-echo "Creating systemd service..."
+echo "Creating systemd service file..."
 cat <<EOF > /etc/systemd/system/$SERVICE_FILE_NAME
 [Unit]
-Description=Web CLI Server                 
-After=network.target                       
+Description=Web CLI Server
+After=network.target
 
 [Service]
-# User that will run the service
-User=$USERNAME                  
-
-# Group under which the service runs
-Group=$USERNAME                      
-      
-WorkingDirectory=$APP_DIR                  # Working directory where the app resides
+User=$USERNAME
+Group=$USERNAME
+WorkingDirectory=$APP_DIR/backend
 ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 0.0.0.0 --port 8000
-                                           # Command to start the FastAPI app using Uvicorn
 
-# --- Capabilities section ---
-
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
-                                           # Grants required capabilities to the service:
-                                           # - CAP_NET_RAW: Required by tcpdump for raw packet capture
-                                           # - CAP_NET_ADMIN: For more advanced network access (e.g., interface config, capture filtering)
-                                           # - CAP_NET_BIND_SERVICE: Allows binding to ports <1024 (e.g., port 80/443 if needed)
-
-CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
-                                           # Restricts the service to only the listed capabilities (dropping all others)
-
-# --- Security hardening section ---
-
-ProtectSystem=full                         # Mounts /usr, /boot, and /etc as read-only to protect system integrity
-ReadWritePaths=/etc/webcli                 # Allows write access to this path (used for app logs/config if needed)
-ProtectHome=yes                            # Prevents access to users' home directories
-NoNewPrivileges=true                       # Ensures the process and children can't gain new privileges (recommended for security)
-
-PrivateTmp=false                           # Disable private /tmp to allow packet tools like tcpdump to work properly
-PrivateDevices=false                       # Required to access real network devices (e.g., eth0, wlo1) for packet capture
-
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
-                                           # Restricts socket creation to only required families:
-                                           # - AF_UNIX: Local IPC
-                                           # - AF_INET/AF_INET6: IPv4/IPv6 communication
-                                           # - AF_NETLINK: For kernel networking messages
-                                           # - AF_PACKET: Required for raw socket access used by tcpdump
-
-[Install]
-WantedBy=multi-user.target                 # Makes the service start at boot under standard multi-user mode
-EOF
-
-# --- Set ownership and permissions for service file ---
-echo "Setting correct permissions for service file..."
-chown $USERNAME:$USERNAME /etc/systemd/system/$SERVICE_FILE_NAME
-chmod 644 /etc/systemd/system/$SERVICE_FILE_NAME
-
-# --- Reload systemd and start service ---
-echo "Starting service..."
-systemctl daemon-reexec
-systemctl daemon-reload
-systemctl enable $SERVICE_FILE_NAME
-systemctl start $SERVICE_FILE_NAME
-
-echo "Setup complete. WebCLI is now running!"
-
-[Service]
-# User that will run the service
-User=webcli
-
-# Group under which the service runs
-Group=webcli
-
-# Working directory where the app resides
-WorkingDirectory=/opt/webcli
-
-ExecStart=/opt/webcli/venv/bin/uvicorn web_cli_server:app --host 0.0.0.0 --port 8000
-
-# Capabilities for tcpdump + web server
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 
-# Security settings (adjusted)
 ProtectSystem=full
-ReadWritePaths=/etc/webcli
+ReadWritePaths=/etc/webcli /var/log/webcli
 ProtectHome=yes
 NoNewPrivileges=true
-
-# Required for packet capture
-PrivateTmp=false 
-
-# Required to access network interfaces
-PrivateDevices=false 
+PrivateTmp=false
+PrivateDevices=false
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
 
 [Install]
 WantedBy=multi-user.target
-~                            
+EOF
+
+# --- Set ownership and permissions for service file ---
+echo "Setting permissions for systemd service file..."
+chown root:root /etc/systemd/system/$SERVICE_FILE_NAME
+chmod 644 /etc/systemd/system/$SERVICE_FILE_NAME
+
+# --- Reload systemd and start service ---
+echo "Reloading systemd and enabling service..."
+systemctl daemon-reload
+systemctl enable --now "$SERVICE_FILE_NAME"
+
+# --- Check service status ---
+if ! systemctl is-active --quiet "$SERVICE_FILE_NAME"; then
+  echo "❌ Failed to start $SERVICE_FILE_NAME. Check logs:"
+  journalctl -xe -u "$SERVICE_FILE_NAME"
+  exit 1
+fi
+
+echo "✅ Setup complete. WebCLI service is now running!"
