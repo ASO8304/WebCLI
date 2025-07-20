@@ -8,62 +8,82 @@ USERNAME="webcli"
 APP_DIR="/opt/webcli"
 CONF_DIR="/etc/webcli"
 LOG_DIR="/var/log/webcli"
-VENV_DIR="$APP_DIR/venv"
 SERVICE_FILE_NAME="webcli.service"
-PYTHON_BIN="/usr/bin/python3.10"  # Adjust if needed
 
-# --- Validate Python binary exists ---
-if [ ! -x "$PYTHON_BIN" ]; then
-  echo "❌ Python binary not found at $PYTHON_BIN"
+# --- Function to find the highest available Python 3.X version ---
+find_python() {
+  for version in 3.{13..8}; do
+    if command -v python$version &>/dev/null; then
+      echo "python$version"
+      return 0
+    fi
+  done
+  if command -v python3 &>/dev/null; then
+    echo "python3"
+    return 0
+  fi
+  return 1
+}
+
+# --- Detect Python binary ---
+PYTHON_BIN=$(find_python) || {
+  echo "❌ No compatible Python 3.x interpreter found (>=3.8 required)."
   exit 1
+}
+
+PYTHON_VERSION=$($PYTHON_BIN -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+echo "✅ Using Python: $PYTHON_BIN (version $PYTHON_VERSION)"
+
+# --- Ensure pythonX.Y-venv is installed ---
+if ! "$PYTHON_BIN" -m venv --help &>/dev/null; then
+  echo "⚠️ 'venv' module is missing for Python $PYTHON_VERSION. Attempting to install..."
+  apt update
+  apt install -y "python${PYTHON_VERSION}-venv" || {
+    echo "❌ Failed to install python${PYTHON_VERSION}-venv. Please check your package sources."
+    exit 1
+  }
 fi
 
-# --- Create a new system user ---
+# --- Define virtualenv path after Python detection ---
+VENV_DIR="$APP_DIR/venv"
+
+# --- Create a new system user if needed ---
 echo "Creating user '$USERNAME' (if not exists)..."
 id -u "$USERNAME" &>/dev/null || useradd --system -m -s /bin/nologin "$USERNAME"
 
-# --- Create application directories ---
+# --- Create necessary directories ---
 echo "Creating application, config, and log directories..."
 mkdir -pv "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
-
-# --- Set ownership and permissions BEFORE venv creation ---
-echo "Setting ownership and permissions on app, config, and log directories..."
 chown -R "$USERNAME:$USERNAME" "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
 chmod 750 "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
-
-# Ensure full write and execute for user recursively on APP_DIR before venv
 chmod -R u+rwX "$APP_DIR"
 
-# --- Remove any existing virtual environment to avoid permission issues ---
+# --- Remove existing virtual environment (if any) ---
 if [ -d "$VENV_DIR" ]; then
-  echo "Removing existing virtual environment at $VENV_DIR"
+  echo "Removing old virtual environment..."
   rm -rf "$VENV_DIR"
 fi
 
-# --- Set up Python virtual environment ---
-echo "Creating virtual environment..."
+# --- Create virtual environment ---
+echo "Creating virtual environment with $PYTHON_BIN..."
 sudo -u "$USERNAME" "$PYTHON_BIN" -m venv "$VENV_DIR"
 
-# --- Activate venv and install dependencies ---
-echo "Installing Python packages..."
+# --- Install Python dependencies ---
+echo "Installing Python packages into virtualenv..."
 sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install --upgrade pip
 sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard]"
 
-# --- Copy project files ---
+# --- Copy backend application code ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "Copying webcli service files to $APP_DIR..."
+echo "Copying backend files to $APP_DIR..."
 cp -rv "$SCRIPT_DIR/../backend" "$APP_DIR/"
 chown -R "$USERNAME:$USERNAME" "$APP_DIR"
 
-# --- Set ownership for config and log directories again (just in case) ---
-echo "Ensuring ownership of configuration and log directories..."
-chown -R "$USERNAME:$USERNAME" "$CONF_DIR" "$LOG_DIR"
-
 # --- Create systemd service file ---
-echo "Creating systemd service file..."
+echo "Creating systemd service file at /etc/systemd/system/$SERVICE_FILE_NAME"
 cat <<EOF > /etc/systemd/system/$SERVICE_FILE_NAME
 [Unit]
-Description=Web CLI Server
+Description=Web CLI Service
 After=network.target
 
 [Service]
@@ -87,21 +107,19 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
 WantedBy=multi-user.target
 EOF
 
-# --- Set ownership and permissions for service file ---
-echo "Setting permissions for systemd service file..."
+# --- Set correct permissions for systemd file ---
 chown root:root /etc/systemd/system/$SERVICE_FILE_NAME
 chmod 644 /etc/systemd/system/$SERVICE_FILE_NAME
 
-# --- Reload systemd and start service ---
-echo "Reloading systemd and enabling service..."
+# --- Reload systemd and enable/start the service ---
+echo "Reloading systemd and starting the service..."
 systemctl daemon-reload
 systemctl enable --now "$SERVICE_FILE_NAME"
 
-# --- Check service status ---
-if ! systemctl is-active --quiet "$SERVICE_FILE_NAME"; then
-  echo "❌ Failed to start $SERVICE_FILE_NAME. Check logs:"
-  journalctl -xe -u "$SERVICE_FILE_NAME"
+# --- Confirm service status ---
+if systemctl is-active --quiet "$SERVICE_FILE_NAME"; then
+  echo "✅ WebCLI service is running!"
+else
+  echo "❌ Failed to start service. Check logs with: journalctl -xe -u $SERVICE_FILE_NAME"
   exit 1
 fi
-
-echo "✅ Setup complete. WebCLI service is now running!"
