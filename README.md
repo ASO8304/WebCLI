@@ -77,36 +77,80 @@ systemctl status webcli
   </ol>
 
     <h2>🚀 Usage</h2>
-  <ol>
-    <li>
-      Copy the HTML(with it's CSS & JS) client UI from the config directory to your home folder:
-      <pre>
+
+<p>You can use the Web CLI in two different ways:</p>
+
+<h3>🔹 Option 1: Open the HTML File Directly</h3>
+<ol>
+  <li>
+    Copy the HTML (with its CSS & JS) client UI from the config directory to your home folder:
+    <pre>
 cp -ra /etc/webcli/config/ ~/webcli_ui
 chown -R &lt;your_username&gt;: ~/webcli_ui
 chmod -R 640 ~/webcli_ui
 chmod 755 ~/webcli_ui
-      </pre>
-      <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
-    </li>
+    </pre>
+    <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
+  </li>
 
-    <li>
-      Open the HTML file using your browser:
-      <pre>
+  <li>
+    Open the HTML file using your browser:
+    <pre>
 xdg-open ~/webcli_ui/index.html
-      </pre>
-      <p>Or manually open it via your file manager.</p>
-    </li>
+    </pre>
+    <p>Or manually open it via your file manager.</p>
+  </li>
 
-    <li>
-      You’ll see a browser-based Linux terminal UI. Log in and try:
-      <pre>
+  <li>
+    You’ll see a browser-based Linux terminal UI. Log in and try:
+    <pre>
 (root)$ help
 (root)$ tcpdump
 (root)$ tcpdump http
-      </pre>
-    </li>
-  </ol>
+    </pre>
+  </li>
+</ol>
 
+<h3>🔹 Option 2: Serve the Web UI via Nginx (Recommended)</h3>
+<ol>
+  <li>Install Nginx:
+    <pre>sudo apt update && sudo apt install nginx -y</pre>
+  </li>
+
+  <li>Copy the client files into the Nginx web root:
+    <pre>
+sudo mkdir -p /var/www/webcli
+sudo cp -r /etc/webcli/config/* /var/www/webcli/
+sudo chown -R www-data:www-data /var/www/webcli
+sudo chmod -R 755 /var/www/webcli
+    </pre>
+  </li>
+
+  <li>Edit the Nginx configuration:
+    <pre>sudo nano /etc/nginx/sites-available/default</pre>
+    Add this inside the <code>server {}</code> block:
+    <pre>
+location /cli/ {
+    alias /var/www/webcli/;
+    index index.html;
+    try_files $uri $uri/ /index.html;
+}
+    </pre>
+  </li>
+
+  <li>Check and reload Nginx:
+    <pre>
+sudo nginx -t
+sudo systemctl reload nginx
+    </pre>
+  </li>
+
+  <li>
+    Now visit <code>http://&lt;your-server-ip&gt;/cli/</code> in your browser.
+    <br />
+    You’ll see the Web CLI without needing to open the HTML manually.
+  </li>
+</ol>
 
   <h2>🛡️ Security & Hardening</h2>
   <ul>
