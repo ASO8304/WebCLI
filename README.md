@@ -27,48 +27,38 @@
 
   <h2>🗂️ Project Structure</h2>
   <pre>
-/client_side/
-├── frontend.html        # Browser terminal UI (HTML)
-├── style.css            # Terminal styling (wider, monospace)
+/client/ 
+├── index.html           # Browser terminal UI (HTML)
+├── style.css            # Terminal styling 
 └── script.js            # WebSocket + input handling
 
-/server_side/
-├── admin_role/
-│   └── command_processor_admin.py
-├── operator_role/
-│   └── command_processor_operator.py
-├── root_role/
-│   ├── command_processor_root.py
-│   └── userctl.py
-├── shared_commands/
+/backend/
+├── core/
 │   ├── command_control.py
-│   ├── config.py
-│   ├── tcpdump.py           # Direct tcpdump integration
+│   ├── config_manager.py
+│   ├── tcpdump_runner.py   
+│   ├── userctl_runner.py
 │   └── validators.py
-├── viewer_role/
-│   └── command_processor_viewer.py
-├── web_cli_server.py       # FastAPI + WebSocket entrypoint
-├── users.json              # User → {id, role} mappings
-├── pass.json               # SHA-256 password hashes by userID
-└── test.py                 # Unit & integration tests
+├── roles/
+│   ├── admin_role.py
+│   ├── operator_role.py
+│   ├── root_role.py
+│   └── viewer_role.py
+├── webcli_server.py        # FastAPI + WebSocket entrypoint
+├── config/
+│   ├── pass.json
+│   ├── setting.INI
+│   └── users.json
+└── scripts/
+    ├── install.sh
+    └── uninstall.sh
   </pre>
 
   <h2>⚙️ Setup & Installation</h2>
   <ol>
     <li>Clone the repo and enter it:
-      <pre>git clone https://… && cd webcli</pre>
+      <pre>git clone https://github.com/ASO8304/web-cli.git && cd webcli</pre>
     </li>
-    <li>Run the installer (creates <code>webcli</code> user, venv, systemd service):
-      <pre>chmod +x install.sh
-./install.sh</pre>
-    </li>
-    <li>Verify systemd status:
-      <pre>systemctl status webcli</pre>
-    </li>
-  </ol>
-
-    <h2>🚀 Usage</h2>
-  <ol>
     <li>
       Navigate to the <code>scripts/</code> directory, make <code>install.sh</code> executable, and run it:
       <pre>
@@ -77,7 +67,6 @@ chmod +x install.sh
 ./install.sh
       </pre>
     </li>
-
     <li>
       After installation, check that the <code>webcli</code> service is running.
       Look for <code>active (running)</code> in green:
@@ -85,13 +74,17 @@ chmod +x install.sh
 systemctl status webcli
       </pre>
     </li>
+  </ol>
 
+    <h2>🚀 Usage</h2>
+  <ol>
     <li>
-      Copy the HTML client UI from the config directory to your home folder:
+      Copy the HTML(with it's CSS & JS) client UI from the config directory to your home folder:
       <pre>
-cp /etc/webcli/index.html ~/webcli_ui.html
-chown &lt;your_username&gt;: ~/webcli_ui.html
-chmod 640 ~/webcli_ui.html
+cp -ra /etc/webcli/config/ ~/webcli_ui
+chown -R &lt;your_username&gt;: ~/webcli_ui
+chmod -R 640 ~/webcli_ui
+chmod 755 ~/webcli_ui
       </pre>
       <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
     </li>
@@ -99,7 +92,7 @@ chmod 640 ~/webcli_ui.html
     <li>
       Open the HTML file using your browser:
       <pre>
-xdg-open ~/webcli_ui.html
+xdg-open ~/webcli_ui/index.html
       </pre>
       <p>Or manually open it via your file manager.</p>
     </li>
@@ -127,9 +120,8 @@ xdg-open ~/webcli_ui.html
 
   <h2>🔄 Customization</h2>
   <ul>
-    <li>Add new tcpdump profiles in <code>shared_commands/tcpdump.py</code></li>
-    <li>Modify CSS in <code>client_side/style.css</code> for different terminal themes</li>
-    <li>Extend command sets per role under <code>server_side/<em>&lt;role&gt;_role/</em></code></li>
+    <li>Add new tcpdump profiles in <code>core/tcpdump.py</code></li>
+    <li>Modify CSS in <code>client/style.css</code> for different terminal themes</li>
   </ul>
 
   <p>Enjoy your new browser-based CLI! 🚀</p>
