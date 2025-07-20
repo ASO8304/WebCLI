@@ -17,28 +17,31 @@ socket.onmessage = (event) => {
     const promptText = msg.slice(10);
     createInputLine(promptText);
   } else if (msg.startsWith("__AUTOCOMPLETE__:")) {
-  const suggestion = msg.slice(17).trim();
-  console.log("🧠 Received autocomplete:", suggestion);
+    const suggestion = msg.slice(17).trim();
+    console.log("🧠 Received autocomplete:", suggestion);
 
-  if (suggestion.startsWith("[REPLACE]")) {
-    const newValue = suggestion.slice(9);
-    const input = inputLine.querySelector("input");
-    input.value = newValue;
-    console.log("🔁 Replacing input with:", newValue);
-  } else if (suggestion.startsWith("[MATCHES]")) {
-    const matches = suggestion.slice(9).trim();
-    if (matches) {
-      appendLine(matches);
-    } else {
-      terminal.style.backgroundColor = "#331111";
+    if (suggestion.startsWith("[REPLACE]")) {
+      const newValue = suggestion.slice(9);
+      const input = inputLine.querySelector("input");
+      input.value = newValue;
+      input.focus(); // keep focus to continue editing
+      console.log("🔁 Replacing input with:", newValue);
+
+    } else if (suggestion.startsWith("[MATCHES]")) {
+      const matches = suggestion.slice(9).trim();
+      appendLine(matches); // Show suggestions
+      // Do NOT create new input line here, keep editing the current input
+      const input = inputLine.querySelector("input");
+      input.focus();
+    } else if (suggestion.startsWith("[NOMATCHES]")) {
+      terminal.style.backgroundColor = "#331111"; // red blink
       setTimeout(() => terminal.style.backgroundColor = "", 100);
+    } else {
+      appendLine("❓ Unknown autocomplete suggestion format.");
     }
   } else {
-    appendLine("❓ No autocomplete suggestions.");
+    appendLine(msg);
   }
-} else {
-  appendLine(msg);
-}
 };
 
 socket.onclose = () => {

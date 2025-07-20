@@ -10,7 +10,7 @@ CONF_DIR="/etc/webcli"
 LOG_DIR="/var/log/webcli"
 SERVICE_FILE_NAME="webcli.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_FILE_NAME"
-PORT="12000"  
+PORT="12000"
 
 # --- Find the highest available Python 3.X version ---
 find_python() {

@@ -119,20 +119,28 @@ sudo chown -R www-data:www-data /var/www/webcli
 sudo chmod -R 755 /var/www/webcli</pre>
   </li>
 
-  <li>Edit the Nginx configuration:
-    <pre>sudo nano /etc/nginx/sites-available/default</pre>
-    Add this inside the <code>server {}</code> block:<pre>
-location /cli/ {
-    alias /var/www/webcli/;
-    index index.html;
-    try_files $uri $uri/ /index.html;
-}</pre>
+  <li>
+    Copy your custom Nginx config file <code>nginx_webcli.conf</code> into the sites-available directory:
+    <pre>sudo cp /path/to/nginx_webcli.conf /etc/nginx/sites-available/webcli</pre>
+    Replace <code>/path/to/nginx_webcli.conf</code> with the actual path where your config file is.
   </li>
 
-  <li>Check and reload Nginx:
+  <li>
+    Enable the site by creating a symbolic link:
+    <pre>sudo ln -s /etc/nginx/sites-available/webcli /etc/nginx/sites-enabled/</pre>
+  </li>
+
+  <li>
+    (Optional) Disable the default site:
+    <pre>sudo unlink /etc/nginx/sites-enabled/default</pre>
+  </li>
+
+  <li>
+    Test Nginx config and reload:
     <pre>
 sudo nginx -t
-sudo systemctl reload nginx</pre>
+sudo systemctl reload nginx
+    </pre>
   </li>
 
   <li>

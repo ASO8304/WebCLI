@@ -219,3 +219,20 @@ async def handle_userctl(websocket, full_command: str):
         return
 
     await handler(websocket, args)
+
+
+
+async def autocomplete(tokens):
+    subcommands = ["add", "edit", "del", "list"]
+
+    if not tokens or len(tokens) == 1:
+        return [s for s in subcommands if s.startswith(tokens[0] if tokens else "")]
+
+    sub = tokens[0]
+    if sub in ("edit", "del") and len(tokens) == 2:
+        users = load_users()
+        return [u for u in users if u.startswith(tokens[1])]
+    
+    return []
+
+autocomplete = autocomplete
