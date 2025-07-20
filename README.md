@@ -51,8 +51,7 @@
 │   └── users.json
 └── scripts/
     ├── install.sh
-    └── uninstall.sh
-  </pre>
+    └── uninstall.sh</pre>
 
   <h2>⚙️ Setup & Installation</h2>
   <ol>
@@ -64,15 +63,13 @@
       <pre>
 cd scripts
 chmod +x install.sh
-./install.sh
-      </pre>
+./install.sh</pre>
     </li>
     <li>
       After installation, check that the <code>webcli</code> service is running.
       Look for <code>active (running)</code> in green:
       <pre>
-systemctl status webcli
-      </pre>
+systemctl status webcli</pre>
     </li>
   </ol>
 
@@ -88,16 +85,14 @@ systemctl status webcli
 cp -ra /etc/webcli/config/ ~/webcli_ui
 chown -R &lt;your_username&gt;: ~/webcli_ui
 chmod -R 640 ~/webcli_ui
-chmod 755 ~/webcli_ui
-    </pre>
+chmod 755 ~/webcli_ui</pre>
     <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
   </li>
 
   <li>
     Open the HTML file using your browser:
     <pre>
-xdg-open ~/webcli_ui/index.html
-    </pre>
+xdg-open ~/webcli_ui/index.html</pre>
     <p>Or manually open it via your file manager.</p>
   </li>
 
@@ -106,8 +101,7 @@ xdg-open ~/webcli_ui/index.html
     <pre>
 (root)$ help
 (root)$ tcpdump
-(root)$ tcpdump http
-    </pre>
+(root)$ tcpdump http</pre>
   </li>
 </ol>
 
@@ -122,27 +116,23 @@ xdg-open ~/webcli_ui/index.html
 sudo mkdir -p /var/www/webcli
 sudo cp -r /etc/webcli/config/* /var/www/webcli/
 sudo chown -R www-data:www-data /var/www/webcli
-sudo chmod -R 755 /var/www/webcli
-    </pre>
+sudo chmod -R 755 /var/www/webcli</pre>
   </li>
 
   <li>Edit the Nginx configuration:
     <pre>sudo nano /etc/nginx/sites-available/default</pre>
-    Add this inside the <code>server {}</code> block:
-    <pre>
+    Add this inside the <code>server {}</code> block:<pre>
 location /cli/ {
     alias /var/www/webcli/;
     index index.html;
     try_files $uri $uri/ /index.html;
-}
-    </pre>
+}</pre>
   </li>
 
   <li>Check and reload Nginx:
     <pre>
 sudo nginx -t
-sudo systemctl reload nginx
-    </pre>
+sudo systemctl reload nginx</pre>
   </li>
 
   <li>
