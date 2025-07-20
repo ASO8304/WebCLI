@@ -1,6 +1,6 @@
 const terminal = document.getElementById("terminal");
 
-let socket = new WebSocket("ws://localhost:8000/ws");
+let socket = new WebSocket("ws://localhost:12000/ws");
 let history = [];
 let historyIndex = -1;
 

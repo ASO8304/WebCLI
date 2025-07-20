@@ -10,6 +10,7 @@ CONF_DIR="/etc/webcli"
 LOG_DIR="/var/log/webcli"
 SERVICE_FILE_NAME="webcli.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_FILE_NAME"
+PORT="12000"  
 
 # --- Find the highest available Python 3.X version ---
 find_python() {
@@ -95,7 +96,7 @@ After=network.target
 User=$USERNAME
 Group=$USERNAME
 WorkingDirectory=$APP_DIR/backend
-ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 0.0.0.0 --port 8000
+ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 0.0.0.0 --port $PORT
 
 AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
