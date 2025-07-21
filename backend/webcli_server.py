@@ -41,8 +41,8 @@ async def websocket_endpoint(websocket: WebSocket):
             username = await websocket.receive_text()
 
             await websocket.send_text(f"{prefix}Enter your password: ")
-            password = await websocket.receive_text()
-
+            password= await websocket.receive_text()
+    
             # Load user info
             with open("/etc/webcli/users.json", "r") as f:
                 USERS = json.load(f)

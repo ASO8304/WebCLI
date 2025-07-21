@@ -49,7 +49,7 @@ async def autocomplete_handler(partial_command: str, role: str):
         handler = ALL_COMMANDS.get(cmd)
         if handler and hasattr(handler, "autocomplete"):
             suggestions = await handler.autocomplete(tokens[1:])
-            return [f"{cmd} {s}".strip() for s in suggestions]
+            return [f"{cmd} {s}" if s else f"{cmd} " for s in suggestions]
 
     # Case 4: Unknown or disallowed command
     return []

@@ -5,6 +5,7 @@ let history = [];
 let historyIndex = -1;
 
 let inputLine = null;
+let restoreInputValue = null;  // 👈 Stores value temporarily across autocomplete
 
 socket.onopen = () => {
   appendLine("🔌 Connecting to server...");
@@ -23,10 +24,9 @@ socket.onmessage = (event) => {
     if (suggestion.startsWith("[REPLACE]")) {
       const newValue = suggestion.slice(9);
       const input = inputLine.querySelector("input");
-      input.value = newValue;
+      input.value = newValue + " "; // Add a space to continue typing
       input.focus(); // keep focus to continue editing
       console.log("🔁 Replacing input with:", newValue);
-
     } else if (suggestion.startsWith("[MATCHES]")) {
       const matches = suggestion.slice(9).trim();
       appendLine(matches); // Show suggestions
@@ -60,7 +60,6 @@ function createInputLine(promptText = "") {
   if (inputLine) {
     inputLine.querySelector("input").disabled = true;
   }
-
   const line = document.createElement("div");
   line.className = "line";
 
@@ -73,6 +72,12 @@ function createInputLine(promptText = "") {
   input.type = "text";
   input.autofocus = true;
 
+  // 👇 Restore value only if set (from autocomplete)
+  if (restoreInputValue !== null) {
+    input.value = restoreInputValue;
+    restoreInputValue = null; // clear it after restoring
+  }
+
   line.appendChild(prompt);
   line.appendChild(input);
   terminal.appendChild(line);
@@ -84,6 +89,8 @@ function createInputLine(promptText = "") {
     if (e.key === "Enter") {
       const command = input.value.trim();
       console.log(command);
+      restoreInputValue = null; // clear it after restoring
+
 
       if (command) {
         history.push(command);
@@ -106,13 +113,14 @@ function createInputLine(promptText = "") {
       }
       e.preventDefault();
     } else if (e.key === "Tab") {
-      e.preventDefault();
-      setTimeout(() => {
-        const currentInput = input.value.trim();
-        console.log("Sending TAB for:", currentInput);
-        socket.send(`__TAB__:${currentInput}`);
-      }, 0);
-    }
+        e.preventDefault();
+        setTimeout(() => {
+          const currentInput = input.value;
+          console.log("Sending TAB for:", currentInput);
+          restoreInputValue = currentInput; // 👈 Store it globally for later restoration
+          socket.send(`__TAB__:${currentInput.trim()}`);
+  }, 0);
+}
   });
 
   inputLine = line;

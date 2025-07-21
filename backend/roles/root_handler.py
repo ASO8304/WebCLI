@@ -1,9 +1,3 @@
-import getpass
-from core.command_control import cmd_config           
-from core.tcpdump_runner import handle_tcpdump 
-from core.userctl_runner import handle_userctl 
-
-import getpass
 from core.command_control import cmd_config
 from core.tcpdump_runner import handle_tcpdump
 from core.userctl_runner import handle_userctl
@@ -11,16 +5,19 @@ from core.autocomplete_handler import autocomplete_handler  # ✅ use role-based
 
 # 🚀 Root command handler
 async def root_handler(websocket, username):
-    await websocket.send_text(f"🔐 Backend is running as user: {getpass.getuser()}")
+    # await websocket.send_text(f"🔐 Backend is running as user: {getpass.getuser()}")
 
     role = "root"
     prompt = f">>>PROMPT:({role})$ "
 
     await websocket.send_text(f"🛠 Logged in as '{role}'. Type 'help' for commands.")
 
+    new_prompt_flag = False
     while True:
-        await websocket.send_text(prompt)
+        if not new_prompt_flag:
+            await websocket.send_text(prompt)
         cmd = await websocket.receive_text()
+        new_prompt_flag = False
 
         # 🧠 Handle TAB-based autocompletion
         if cmd.startswith("__TAB__:"):
@@ -29,8 +26,10 @@ async def root_handler(websocket, username):
 
             if not suggestions:
                 await websocket.send_text("__AUTOCOMPLETE__:[NOMATCHES]")
+                new_prompt_flag = True  # Set flag to replace next prompt
             elif len(suggestions) == 1:
                 await websocket.send_text(f"__AUTOCOMPLETE__:[REPLACE]{suggestions[0]}")
+                new_prompt_flag = True  # Set flag to replace next prompt
             else:
                 await websocket.send_text(f"__AUTOCOMPLETE__:[MATCHES] {', '.join(suggestions)}")
             continue
@@ -53,13 +52,13 @@ async def root_handler(websocket, username):
             await websocket.send_text("🔙 Returned from config mode.")
 
         # 👤 User control
-        elif cmd.startswith("userctl "):
+        elif cmd.startswith("userctl ") or cmd == "userctl" :
             await handle_userctl(websocket, cmd)
 
         # 🐾 Tcpdump
-        elif cmd.startswith("tcpdump "):
+        elif cmd.startswith("tcpdump ") or cmd == "userctl":
             await handle_tcpdump(websocket, cmd)
 
         # ❓ Unknown
         else:
-            await websocket.send_text("❓ Unknown command.")
+            await websocket.send_text(f"❓ Unknown command: {cmd}")

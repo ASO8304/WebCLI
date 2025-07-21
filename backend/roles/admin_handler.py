@@ -1,92 +1,55 @@
-from core import command_control
+from core import autocomplete_handler
+from core.command_control import cmd_config
 
-# 👇 Replaces flat COMMANDS list
-COMMAND_TREE = {
-    "help": {},
-    "signout": {},
-    "do_something": {},
-    "config": {
-        "set": {},
-        "get": {},
-        "reset": {}
-    },
-    "consent": {
-        "grant": {},
-        "revoke": {},
-        "status": {}
-    }
-}
-
-# 🧠 Recursive logic to resolve suggestions
-def get_command_completions(tokens, tree):
-    if not tokens:
-        return list(tree.keys())
-    head, *rest = tokens
-    if head in tree:
-        return get_command_completions(rest, tree[head])
-    else:
-        return [cmd for cmd in tree if cmd.startswith(head)]
-
-# 🌟 Wraps into async handler
-async def autocomplete_handler(partial_command: str):
-    tokens = partial_command.strip().split()
-    if partial_command.endswith(" "):
-        tokens.append("")
-    suggestions = get_command_completions(tokens, COMMAND_TREE)
-    if len(tokens) > 1:
-        prefix = ' '.join(tokens[:-1])
-        suggestions = [f"{prefix} {s}".strip() for s in suggestions]
-    return suggestions
-
-# 🚀 Main session loop
+#
+# 🚀 admin command handler
 async def admin_handler(websocket, username):
+    # await websocket.send_text(f"🔐 Backend is running as user: {getpass.getuser()}")
+
     role = "admin"
-    prompt = f">>>PROMPT:{username}--({role})$ "
+    prompt = f">>>PROMPT:({role})$ "
 
     await websocket.send_text(f"🛠 Logged in as '{role}'. Type 'help' for commands.")
 
+    new_prompt_flag = False
     while True:
-        await websocket.send_text(f"{prompt}")
+        if not new_prompt_flag:
+            await websocket.send_text(prompt)
         cmd = await websocket.receive_text()
+        new_prompt_flag = False
 
-        # ✅ Autocomplete support
+        # 🧠 Handle TAB-based autocompletion
         if cmd.startswith("__TAB__:"):
-            partial = cmd.split(":", 1)[1]
-            matches = await autocomplete_handler(partial)
+            partial = cmd[len("__TAB__:"):].strip()
+            suggestions = await autocomplete_handler(partial, role)
 
-            if len(matches) == 1:
-                await websocket.send_text(f"__AUTOCOMPLETE__:[REPLACE]{matches[0]}")
-            elif len(matches) > 1:
-                await websocket.send_text(f"__AUTOCOMPLETE__:[MATCHES]{'  '.join(sorted(matches))}")
+            if not suggestions:
+                await websocket.send_text("__AUTOCOMPLETE__:[NOMATCHES]")
+                new_prompt_flag = True  # Set flag to replace next prompt
+            elif len(suggestions) == 1:
+                await websocket.send_text(f"__AUTOCOMPLETE__:[REPLACE]{suggestions[0]}")
+                new_prompt_flag = True  # Set flag to replace next prompt
             else:
-                await websocket.send_text("__AUTOCOMPLETE__:[MATCHES]")
-            continue  # Skip re-displaying prompt
+                await websocket.send_text(f"__AUTOCOMPLETE__:[MATCHES] {', '.join(suggestions)}")
+            continue
 
-        # 📤 Command execution
+        # 🚪 Built-in command: signout
         if cmd == "signout":
             await websocket.send_text("🚪 Signing out...")
             return True
 
+        # 📖 Help
         elif cmd == "help":
-            # 🧾 Flatten all top-level commands for display
-            def flatten_cmds(tree, prefix=""):
-                cmds = []
-                for key, sub in tree.items():
-                    full = f"{prefix} {key}".strip()
-                    cmds.append(full)
-                    if sub:
-                        cmds.extend(flatten_cmds(sub, full))
-                return cmds
+            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump")
 
-            available = flatten_cmds(COMMAND_TREE)
-            await websocket.send_text("🛠 Available commands:\n" + "\n".join(sorted(available)))
-
-        elif cmd.startswith("config"):
+        # 🛠 Config mode
+        elif cmd == "config":
             await websocket.send_text("🔧 Entering config mode...")
-            should_return = await command_control.cmd_config(websocket, prompt)
+            should_return = await cmd_config(websocket, prompt)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")
 
+        # ❓ Unknown
         else:
-            await websocket.send_text("❓ Unknown command.")
+            await websocket.send_text(f"❓ Unknown command: {cmd}")

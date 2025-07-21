@@ -234,5 +234,3 @@ async def autocomplete(tokens):
         return [u for u in users if u.startswith(tokens[1])]
     
     return []
-
-autocomplete = autocomplete

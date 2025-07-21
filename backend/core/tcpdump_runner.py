@@ -1,15 +1,3 @@
-### ls -hal $(which tcpdump)
-####-rwxr-xr-x 1 root root 1.3M Feb  8  2024 /usr/bin/tcpdump
-
-### chmod 750 /usr/bin/tcpdump
- 
-### setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump 
-# e = Effective (enabled when the program runs)
-# i = Inheritable (can pass this cap to child processes)
-# p = Permitted (the cap is allowed at all)
-
-### setfacl -m u:webcli:x /usr/bin/tcpdump
-
 import asyncio
 
 # Predefined safe tcpdump commands (you can add more filters later)
