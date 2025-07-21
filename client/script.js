@@ -119,9 +119,22 @@ function createInputLine(promptText = "") {
           console.log("Sending TAB for:", currentInput);
           restoreInputValue = currentInput; // 👈 Store it globally for later restoration
           socket.send(`__TAB__:${currentInput.trim()}`);
-  }, 0);
-}
+        }, 0);
+    } else if (e.ctrlKey && e.key === "c") {
+        e.preventDefault();
+        restoreInputValue = null; 
+        socket.send("__INTERRUPT__");  // 👈 Special interrupt message
+  }
+
   });
+  document.addEventListener("click", () => {
+  if (inputLine) {
+    const input = inputLine.querySelector("input");
+    if (input && !input.disabled) {
+      input.focus();
+    }
+  }
+});
 
   inputLine = line;
 }

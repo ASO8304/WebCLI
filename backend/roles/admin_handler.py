@@ -1,28 +1,49 @@
-from core import autocomplete_handler
+import asyncio
+from backend.core.process_manager import interrupt_current_process
+from backend.core.tcpdump_runner import handle_tcpdump
+from backend.core.userctl_runner import handle_userctl
+from core.autocomplete_handler import autocomplete_handler
 from core.command_control import cmd_config
 
-#
-# 🚀 admin command handler
 async def admin_handler(websocket, username):
-    # await websocket.send_text(f"🔐 Backend is running as user: {getpass.getuser()}")
-
     role = "admin"
     prompt = f">>>PROMPT:({role})$ "
-
     await websocket.send_text(f"🛠 Logged in as '{role}'. Type 'help' for commands.")
+
+    running_task = None
 
     new_prompt_flag = False
     while True:
-        if not new_prompt_flag:
+        if not running_task and not new_prompt_flag:
             await websocket.send_text(prompt)
-        cmd = await websocket.receive_text()
-        new_prompt_flag = False
 
-        # 🧠 Handle TAB-based autocompletion
+        new_prompt_flag = False
+        cmd = await websocket.receive_text()
+
+        # Handle Ctrl+C interrupt
+        if cmd == "__INTERRUPT__":
+            if running_task and not running_task.done():
+                await interrupt_current_process(websocket)
+                running_task.cancel()
+                try:
+                    await running_task
+                except asyncio.CancelledError:
+                    pass
+                running_task = None
+                continue
+            else:
+                await websocket.send_text("⚠️ No running command to interrupt.")
+                continue
+
+        # If a command is running, block new commands except interrupt
+        if running_task and not running_task.done():
+            await websocket.send_text("⚠️ A command is already running. Interrupt it with Ctrl+C.")
+            continue
+
+        # Autocomplete handler
         if cmd.startswith("__TAB__:"):
             partial = cmd[len("__TAB__:"):].strip()
             suggestions = await autocomplete_handler(partial, role)
-
             if not suggestions:
                 await websocket.send_text("__AUTOCOMPLETE__:[NOMATCHES]")
                 new_prompt_flag = True  # Set flag to replace next prompt
@@ -33,23 +54,22 @@ async def admin_handler(websocket, username):
                 await websocket.send_text(f"__AUTOCOMPLETE__:[MATCHES] {', '.join(suggestions)}")
             continue
 
-        # 🚪 Built-in command: signout
         if cmd == "signout":
             await websocket.send_text("🚪 Signing out...")
             return True
 
-        # 📖 Help
         elif cmd == "help":
             await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump")
 
-        # 🛠 Config mode
         elif cmd == "config":
-            await websocket.send_text("🔧 Entering config mode...")
             should_return = await cmd_config(websocket, prompt)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")
+            
+        elif cmd.startswith("tcpdump ") or cmd == "tcpdump":
+            # Run tcpdump in background task to keep loop responsive
+            running_task = asyncio.create_task(handle_tcpdump(websocket, cmd))
 
-        # ❓ Unknown
         else:
-            await websocket.send_text(f"❓ Unknown command: {cmd}")
+            await websocket.send_text(f"❓ Unknown command: '{cmd}'")
