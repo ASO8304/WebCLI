@@ -124,7 +124,26 @@ function createInputLine(promptText = "") {
         e.preventDefault();
         restoreInputValue = null; 
         socket.send("__INTERRUPT__");  // 👈 Special interrupt message
-  }
+    } else if (e.ctrlKey && (e.key === "l" || e.key === "L")) {
+        e.preventDefault();
+        if (inputLine) {
+          // Remove all lines except the inputLine
+          Array.from(terminal.children).forEach(child => {
+            if (child !== inputLine) {
+              terminal.removeChild(child);
+            }
+          });
+
+          // Scroll terminal to top
+          terminal.scrollTop = 0;
+
+          // Focus input again
+          const input = inputLine.querySelector("input");
+          if (input && !input.disabled) {
+            input.focus();
+          }
+        }
+    }
 
   });
   document.addEventListener("click", () => {
