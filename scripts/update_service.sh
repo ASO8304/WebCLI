@@ -5,7 +5,7 @@ set -e
 # --- Constants ---
 SERVICE_NAME="webcli.service"
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
-LOCAL_BACKEND_DIR="./backend"
+LOCAL_BACKEND_DIR="../backend"
 
 # --- Check service file existence ---
 if [[ ! -f "$SYSTEMD_SERVICE_PATH" ]]; then
