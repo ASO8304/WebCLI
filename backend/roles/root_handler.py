@@ -4,6 +4,8 @@ from core.tcpdump_runner import handle_tcpdump
 from core.userctl_runner import handle_userctl
 from core.autocomplete_handler import autocomplete_handler
 from core.process_manager import interrupt_current_process
+from core.systemctl_runner import handle_systemctl
+
 
 async def root_handler(websocket, username):
     role = "root"
@@ -62,7 +64,7 @@ async def root_handler(websocket, username):
             return True
 
         elif cmd == "help":
-            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump")
+            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl")
 
         elif cmd == "config":
             should_return = await cmd_config(websocket, prompt)
@@ -82,6 +84,16 @@ async def root_handler(websocket, username):
                 new_prompt_flag = True
                 asyncio.create_task(send_prompt())
 
+            running_task.add_done_callback(done_callback)
+
+        elif cmd.startswith("systemctl ") or cmd == "systemctl":
+            running_task = asyncio.create_task(handle_systemctl(websocket, cmd))
+
+            def done_callback(task):
+                nonlocal running_task
+                running_task = None
+                asyncio.create_task(send_prompt())
+                
             running_task.add_done_callback(done_callback)
 
         else:

@@ -1,11 +1,11 @@
 # core/autocomplete_handler.py
 
-from core import tcpdump_runner, userctl_runner
+from core import tcpdump_runner, userctl_runner, systemctl_runner 
 
 # 🔐 Role-based access control for top-level commands
 ROLE_COMMANDS = {
-    "root":     ["tcpdump", "userctl", "config", "help", "signout"],
-    "admin":    ["tcpdump", "config", "help", "signout"],
+    "root":     ["tcpdump", "userctl", "config", "help", "signout", "systemctl"],
+    "admin":    ["tcpdump", "config", "help", "signout", "systemctl"],
     "operator": ["tcpdump", "help", "signout"],
     "viewer":   ["help", "signout"],
 }
@@ -17,6 +17,7 @@ ALL_COMMANDS = {
     "config": None,
     "userctl": userctl_runner,
     "tcpdump": tcpdump_runner,
+    "systemctl": systemctl_runner,
 }
 
 

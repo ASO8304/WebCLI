@@ -118,11 +118,11 @@ function createInputLine(promptText = "") {
           const currentInput = input.value;
           console.log("Sending TAB for:", currentInput);
           restoreInputValue = currentInput; // 👈 Store it globally for later restoration
-          socket.send(`__TAB__:${currentInput.trim()}`);
+          socket.send(`__TAB__:${currentInput}`);
         }, 0);
     } else if (e.ctrlKey && e.key === "c") {
         e.preventDefault();
-        restoreInputValue = null; 
+        restoreInputValue = null;
         socket.send("__INTERRUPT__");  // 👈 Special interrupt message
     } else if (e.ctrlKey && (e.key === "l" || e.key === "L")) {
         e.preventDefault();
@@ -136,7 +136,7 @@ function createInputLine(promptText = "") {
 
           // Scroll terminal to top
           terminal.scrollTop = 0;
-
+          
           // Focus input again
           const input = inputLine.querySelector("input");
           if (input && !input.disabled) {

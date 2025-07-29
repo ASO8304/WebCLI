@@ -4,6 +4,8 @@ from core.tcpdump_runner import handle_tcpdump
 from core.userctl_runner import handle_userctl
 from core.autocomplete_handler import autocomplete_handler
 from core.process_manager import interrupt_current_process
+from core.systemctl_runner import handle_systemctl
+
 
 async def admin_handler(websocket, username):
     role = "admin"
@@ -13,7 +15,7 @@ async def admin_handler(websocket, username):
     running_task = None
     new_prompt_flag = False
 
-    async def send_prompt_if_needed():
+    async def send_prompt():
         if not running_task or (running_task and running_task.done()):
             await websocket.send_text(prompt)
 
@@ -67,7 +69,7 @@ async def admin_handler(websocket, username):
 
         # Command: help
         elif cmd == "help":
-            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump")
+            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl")
 
         # Command: config
         elif cmd == "config":
@@ -86,6 +88,17 @@ async def admin_handler(websocket, username):
                 asyncio.create_task(send_prompt_if_needed())
 
             running_task.add_done_callback(done_callback)
+
+        elif cmd.startswith("systemctl ") or cmd == "systemctl":
+            running_task = asyncio.create_task(handle_systemctl(websocket, cmd))
+
+            def done_callback(task):
+                nonlocal running_task
+                running_task = None
+                asyncio.create_task(send_prompt())
+                
+            running_task.add_done_callback(done_callback)
+
 
         # Unknown command
         else:

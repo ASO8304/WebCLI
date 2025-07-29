@@ -10,6 +10,7 @@ CONF_DIR="/etc/webcli"
 LOG_DIR="/var/log/webcli"
 SERVICE_FILE_NAME="webcli.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_FILE_NAME"
+SUDOERS_FILE="/etc/sudoers.d/webcli"
 
 echo "🔧 Starting WebCLI uninstallation..."
 
@@ -50,5 +51,15 @@ if id "$USERNAME" &>/dev/null; then
   echo "Deleting system user '$USERNAME'..."
   userdel -r "$USERNAME" || true
 fi
+
+# --- Delete the sudoers file ---
+if [ -f "$SUDOERS_FILE" ]; then
+    echo "🧽 Removing sudoers entry..."
+    sudo rm -f "$SUDOERS_FILE"
+    echo "✅ Removed $SUDOERS_FILE"
+else
+    echo "ℹ️ No sudoers file found at $SUDOERS_FILE"
+fi
+
 
 echo "✅ Uninstallation complete. WebCLI has been removed."
