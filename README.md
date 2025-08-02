@@ -34,11 +34,14 @@
 
 /backend/
 ├── core/
-│   ├── command_control.py
-│   ├── config_manager.py
-│   ├── tcpdump_runner.py
-│   ├── userctl_runner.py
-│   └── validators.py
+│   ├── autocomplete_handler.py  # Handles role-based command suggestions for autocomplete
+│   ├── cmmand_control.py        # Dispatches and manages config-related CLI commands like show, set, back
+│   ├── config_manager.py        # Provides logic to list and edit INI/JSON config files interactively
+│   ├── process_manager.py       # Tracks and controls long-running subprocesses (e.g., interrupting tcpdump)
+│   ├── systemctl_runner.py      # Contain logic to safely handle systemctl commands
+│   ├── tcp_dump_runner.py       # Validates and runs secure tcpdump subprocesses, only allowing whitelisted flags
+│   ├── userctl_runner.py        # Provides logic for adding, editing, deleting, and listing users and roles
+│   └── validators.py            # Defines custom validation rules for config values
 ├── roles/
 │   ├── admin_role.py
 │   ├── operator_role.py
@@ -58,7 +61,7 @@
   <h2>⚙️ Setup & Installation</h2>
   <ol>
     <li>Clone the repo and enter it:
-      <pre>git clone https://github.com/ASO8304/web-cli.git && cd webcli</pre>
+      <pre>git clone https://github.com/ASO8304/WebCli.git && cd WebCli</pre>
     </li>
     <li>
       Navigate to the <code>scripts/</code> directory, make <code>install.sh</code> executable, and run it:
@@ -84,7 +87,7 @@ systemctl status webcli</pre>
   <li>
     Ensure you are in the <code>client/</code> directory:
     <pre>
-cd /path/to/WebCLI-main/client</pre>
+cd /path/to/WebCLI-main/scripts</pre>
   </li>
 
   <li>
@@ -100,7 +103,8 @@ sudo ./setup_nginx_webcli.sh</pre>
     <pre>
 (root)$ help
 (root)$ tcpdump
-(root)$ userctl add</pre>
+(root)$ userctl add 
+(root)$ systemctl restart</pre>
   </li>
 </ol>
 
