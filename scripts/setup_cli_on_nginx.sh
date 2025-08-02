@@ -7,22 +7,11 @@ NGINX_CONFIG_PATH="/etc/nginx/sites-available/cli"
 NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/cli"
 CLIENT_SRC_DIR="$(cd "$(dirname "$0")/../client" && pwd)"
 CLIENT_DST_DIR="/var/www/cli"
-CERT_PATH="/etc/ssl/certs/cli.crt"
-KEY_PATH="/etc/ssl/private/cli.key"
 
 echo "🔍 Checking for nginx..."
 if ! command -v nginx >/dev/null 2>&1; then
     echo "❌ Nginx is not installed."
     echo "💡 Install it using: sudo apt install nginx"
-    exit 1
-fi
-
-# --- Check TLS certs exist ---
-if [[ ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
-    echo "❌ TLS certificate not found at:"
-    echo "   $CERT_PATH"
-    echo "   $KEY_PATH"
-    echo "💡 Provide valid cert/key or generate one using openssl or certbot"
     exit 1
 fi
 
@@ -39,11 +28,8 @@ sudo chmod -R 755 "$CLIENT_DST_DIR"
 echo "🛠️ Writing Nginx config to $NGINX_CONFIG_PATH..."
 sudo tee "$NGINX_CONFIG_PATH" > /dev/null <<EOF
 server {
-    listen 443 ssl;
+    listen 8080;
     server_name _;
-
-    ssl_certificate     $CERT_PATH;
-    ssl_certificate_key $KEY_PATH;
 
     location = /cli {
         return 301 /cli/;
@@ -80,4 +66,4 @@ echo "🔁 Reloading Nginx..."
 sudo nginx -t
 sudo systemctl reload nginx
 
-echo "✅ WebCli is now available at: https://<your-server>/cli/"
+echo "✅ WebCLI is now available at: http://<your-server>:8080/cli/"
