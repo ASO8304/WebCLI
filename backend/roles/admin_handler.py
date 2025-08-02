@@ -5,6 +5,7 @@ from core.userctl_runner import handle_userctl
 from core.autocomplete_handler import autocomplete_handler
 from core.process_manager import interrupt_current_process
 from core.systemctl_runner import handle_systemctl
+from core.iptables_runner import handle_iptables  # ✅ NEW
 
 
 async def admin_handler(websocket, username):
@@ -20,14 +21,13 @@ async def admin_handler(websocket, username):
             await websocket.send_text(prompt)
 
     while True:
-        # Show prompt if no task is running and no autocomplete override
         if not running_task and not new_prompt_flag:
             await websocket.send_text(prompt)
 
-        new_prompt_flag = False  # Reset flag before receiving new input
+        new_prompt_flag = False
         cmd = await websocket.receive_text()
 
-        # Handle Ctrl+C interrupt
+        # Ctrl+C interrupt
         if cmd == "__INTERRUPT__":
             if running_task and not running_task.done():
                 await interrupt_current_process(websocket)
@@ -43,12 +43,11 @@ async def admin_handler(websocket, username):
                 await websocket.send_text("⚠️ No running command to interrupt.")
                 continue
 
-        # Prevent running multiple commands at once
         if running_task and not running_task.done():
             await websocket.send_text("⚠️ A command is already running. Interrupt it with Ctrl+C.")
             continue
 
-        # Handle autocomplete
+        # Autocomplete
         if cmd.startswith("__TAB__:"):
             partial = cmd[len("__TAB__:"):].strip()
             suggestions = await autocomplete_handler(partial, role)
@@ -62,23 +61,25 @@ async def admin_handler(websocket, username):
                 await websocket.send_text(f"__AUTOCOMPLETE__:[MATCHES] {', '.join(suggestions)}")
             continue
 
-        # Command: signout
+        # Sign out
         if cmd == "signout":
             await websocket.send_text("🚪 Signing out...")
             return True
 
-        # Command: help
+        # Help
         elif cmd == "help":
-            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl")
+            await websocket.send_text(
+                "🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl, iptables"
+            )
 
-        # Command: config
+        # Config
         elif cmd == "config":
             should_return = await cmd_config(websocket, prompt)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")
-            
-        # Command: tcpdump
+
+        # Tcpdump
         elif cmd.startswith("tcpdump ") or cmd == "tcpdump":
             running_task = asyncio.create_task(handle_tcpdump(websocket, cmd))
 
@@ -89,6 +90,7 @@ async def admin_handler(websocket, username):
 
             running_task.add_done_callback(done_callback)
 
+        # Systemctl
         elif cmd.startswith("systemctl ") or cmd == "systemctl":
             running_task = asyncio.create_task(handle_systemctl(websocket, cmd))
 
@@ -96,14 +98,23 @@ async def admin_handler(websocket, username):
                 nonlocal running_task
                 running_task = None
                 asyncio.create_task(send_prompt())
-                
+
             running_task.add_done_callback(done_callback)
 
+        # Iptables
+        elif cmd.startswith("iptables ") or cmd == "iptables":
+            running_task = asyncio.create_task(handle_iptables(websocket, cmd))
+
+            def done_callback(task):
+                nonlocal running_task
+                running_task = None
+                asyncio.create_task(send_prompt())
+
+            running_task.add_done_callback(done_callback)
 
         # Unknown command
         else:
             await websocket.send_text(f"❓ Unknown command: '{cmd}'")
 
-        # Final check to maybe show prompt after fast commands
         if not running_task and not new_prompt_flag:
             await websocket.send_text(prompt)
