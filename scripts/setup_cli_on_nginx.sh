@@ -5,7 +5,7 @@ set -e
 # --- Constants ---
 NGINX_CONFIG_PATH="/etc/nginx/sites-available/cli"
 NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/cli"
-CLIENT_SRC_DIR="$(pwd)"
+CLIENT_SRC_DIR="$(cd "$(dirname "$0")/../client" && pwd)"
 CLIENT_DST_DIR="/var/www/cli"
 CERT_PATH="/etc/ssl/certs/cli.crt"
 KEY_PATH="/etc/ssl/private/cli.key"
