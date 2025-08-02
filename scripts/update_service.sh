@@ -42,22 +42,36 @@ BACKUP_DIR="${WORKING_DIR}_backup_$TIMESTAMP"
 echo "📦 Backing up existing backend to: $BACKUP_DIR"
 cp -r "$WORKING_DIR" "$BACKUP_DIR"
 
-# --- Replace backend files ---
+# --- Replace backend files safely (preserve venv and config) ---
 echo "♻️ Replacing backend with latest files..."
-rm -rf "$WORKING_DIR"/*
-cp -r "$LOCAL_BACKEND_DIR"/* "$WORKING_DIR"
+find "$WORKING_DIR" -mindepth 1 -maxdepth 1 \
+  ! -name 'venv' \
+  ! -name 'config' \
+  ! -name 'pass.json' \
+  ! -name 'users.json' \
+  ! -name 'setting.INI' \
+  -exec rm -rf {} \;
+
+cp -r "$LOCAL_BACKEND_DIR"/* "$WORKING_DIR/"
+
+# --- Sanity check ---
+if [[ ! -f "$WORKING_DIR/webcli_server.py" ]]; then
+  echo "❌ ERROR: webcli_server.py not found after update!"
+  exit 1
+fi
 
 # --- Set ownership ---
 echo "🔑 Setting ownership to user: $SERVICE_USER"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$WORKING_DIR"
 
-# --- Set permissions ---
+# --- Set permissions (avoid touching venv/bin scripts) ---
 echo "🔐 Applying file (644) and directory (755) permissions..."
-find "$WORKING_DIR" -type f -exec chmod 644 {} \;
-find "$WORKING_DIR" -type d -exec chmod 755 {} \;
+find "$WORKING_DIR" -path "$WORKING_DIR/venv" -prune -o -type f -exec chmod 644 {} \;
+find "$WORKING_DIR" -path "$WORKING_DIR/venv" -prune -o -type d -exec chmod 755 {} \;
 
 # --- Restart service ---
 echo "🔁 Restarting $SERVICE_NAME..."
+systemctl daemon-reexec
 systemctl daemon-reload
 systemctl restart "$SERVICE_NAME"
 
