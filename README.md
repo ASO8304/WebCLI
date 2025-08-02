@@ -51,7 +51,9 @@
 │   └── users.json
 └── scripts/
     ├── install.sh
-    └── uninstall.sh</pre>
+    ├── uninstall.sh
+    ├── update.sh
+    └── setup_nginx_webcli</pre>
 
   <h2>⚙️ Setup & Installation</h2>
   <ol>
@@ -150,19 +152,17 @@ sudo systemctl reload nginx
   </li>
 </ol>
 
-  <h2>🛡️ Security & Hardening</h2>
+  <h2>🛡️ Security Notes</h2>
   <ul>
-    <li><strong>/usr/bin/tcpdump</strong> has <code>cap_net_raw,cap_net_admin+eip</code> via <code>setcap</code>.</li>
-    <li><code>chmod 750</code> + <code>setfacl -m u:webcli:x</code> ensure only <code>webcli</code> can execute it.</li>
-    <li><strong>systemd</strong> unit grants only:
-      <code>CAP_NET_RAW</code>, <code>CAP_NET_ADMIN</code>, <code>CAP_NET_BIND_SERVICE</code>.<br>
-      <code>RestrictAddressFamilies</code> includes <code>AF_PACKET</code> for packet capture.</li>
-    <li><code>NoNewPrivileges=true</code>, <code>ProtectSystem=full</code>, <code>ProtectHome=yes</code>, etc.</li>
+    <li>Only safe capabilities are granted via <code>CapabilityBoundingSet</code>.</li>
+    <li>systemd enforces sandboxing with <code>PrivateTmp</code>, <code>ProtectSystem</code>, etc.</li>
+    <li>TCP commands are validated and filtered server-side.</li>
+    <li><code>/var/log/webcli</code> is isolated from users.</li>
   </ul>
 
   <h2>🔄 Customization</h2>
   <ul>
-    <li>Add new tcpdump profiles in <code>core/tcpdump.py</code></li>
+    <li>Add new tcpdump profiles in <code>core/tcpdump_runner.py</code></li>
     <li>Modify CSS in <code>client/style.css</code> for different terminal themes</li>
   </ul>
 
