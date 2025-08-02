@@ -3,83 +3,88 @@
 set -e
 
 # --- Constants ---
-SERVICE_NAME="webcli.service"
-SYSTEMD_SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
-LOCAL_BACKEND_DIR="../backend"
+NGINX_CONFIG_PATH="/etc/nginx/sites-available/webcli"
+NGINX_ENABLED_PATH="/etc/nginx/sites-enabled/webcli"
+CLIENT_SRC_DIR="$(cd "$(dirname "$0")/../client" && pwd)"
+CLIENT_DST_DIR="/var/www/cli"
+CERT_PATH="/etc/ssl/certs/cli.crt"
+KEY_PATH="/etc/ssl/private/cli.key"
 
-# --- Check service file existence ---
-if [[ ! -f "$SYSTEMD_SERVICE_PATH" ]]; then
-  echo "❌ Systemd service file not found at $SYSTEMD_SERVICE_PATH"
-  exit 1
+echo "🔍 Checking for nginx..."
+if ! command -v nginx >/dev/null 2>&1; then
+    echo "❌ Nginx is not installed."
+    echo "💡 Install it using: sudo apt install nginx"
+    exit 1
 fi
 
-# --- Extract WorkingDirectory ---
-WORKING_DIR=$(grep -Po '^WorkingDirectory=\K.*' "$SYSTEMD_SERVICE_PATH" || true)
-if [[ -z "$WORKING_DIR" ]]; then
-  echo "❌ 'WorkingDirectory=' not found in $SYSTEMD_SERVICE_PATH"
-  exit 1
-fi
-
-# --- Extract User (service owner) ---
-SERVICE_USER=$(grep -Po '^User=\K.*' "$SYSTEMD_SERVICE_PATH" || true)
-if [[ -z "$SERVICE_USER" ]]; then
-  echo "❌ 'User=' not found in $SYSTEMD_SERVICE_PATH"
-  exit 1
-fi
-
-echo "📁 Detected install path: $WORKING_DIR"
-echo "👤 Service user: $SERVICE_USER"
-
-# --- Ensure working directory exists ---
-if [[ ! -d "$WORKING_DIR" ]]; then
-  echo "❌ WorkingDirectory path does not exist: $WORKING_DIR"
-  exit 1
-fi
-
-# --- Backup current backend ---
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="${WORKING_DIR}_backup_$TIMESTAMP"
-echo "📦 Backing up existing backend to: $BACKUP_DIR"
-cp -r "$WORKING_DIR" "$BACKUP_DIR"
-
-# --- Replace backend files safely (preserve venv and config) ---
-echo "♻️ Replacing backend with latest files..."
-find "$WORKING_DIR" -mindepth 1 -maxdepth 1 \
-  ! -name 'venv' \
-  ! -name 'config' \
-  ! -name 'pass.json' \
-  ! -name 'users.json' \
-  ! -name 'setting.INI' \
-  -exec rm -rf {} \;
-
-cp -r "$LOCAL_BACKEND_DIR"/* "$WORKING_DIR/"
-
-# --- Sanity check ---
-if [[ ! -f "$WORKING_DIR/webcli_server.py" ]]; then
-  echo "❌ ERROR: webcli_server.py not found after update!"
-  exit 1
-fi
-
-# --- Set ownership ---
-echo "🔑 Setting ownership to user: $SERVICE_USER"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$WORKING_DIR"
-
-# --- Set permissions (avoid touching venv/bin scripts) ---
-echo "🔐 Applying file (644) and directory (755) permissions..."
-find "$WORKING_DIR" -path "$WORKING_DIR/venv" -prune -o -type f -exec chmod 644 {} \;
-find "$WORKING_DIR" -path "$WORKING_DIR/venv" -prune -o -type d -exec chmod 755 {} \;
-
-# --- Restart service ---
-echo "🔁 Restarting $SERVICE_NAME..."
-systemctl daemon-reexec
-systemctl daemon-reload
-systemctl restart "$SERVICE_NAME"
-
-# --- Check status ---
-if systemctl is-active --quiet "$SERVICE_NAME"; then
-  echo "✅ Service restarted and running successfully!"
+# --- Generate self-signed cert if missing ---
+if [[ ! -f "$CERT_PATH" || ! -f "$KEY_PATH" ]]; then
+    echo "🔐 TLS certificate not found. Generating self-signed certificate..."
+    sudo openssl req -x509 -nodes -days 365 \
+      -newkey rsa:2048 \
+      -keyout "$KEY_PATH" \
+      -out "$CERT_PATH" \
+      -subj "/CN=localhost"
+    echo "✅ Self-signed TLS certificate created."
 else
-  echo "❌ Failed to restart $SERVICE_NAME. Check logs:"
-  echo "   journalctl -xe -u $SERVICE_NAME"
-  exit 1
+    echo "✅ TLS certificate already exists."
 fi
+
+# --- Deploy frontend files ---
+echo "📁 Copying WebCLI client to $CLIENT_DST_DIR..."
+sudo mkdir -p "$CLIENT_DST_DIR"
+sudo cp "$CLIENT_SRC_DIR"/index.html "$CLIENT_DST_DIR/"
+sudo cp "$CLIENT_SRC_DIR"/script.js "$CLIENT_DST_DIR/"
+sudo cp "$CLIENT_SRC_DIR"/style.css "$CLIENT_DST_DIR/"
+sudo chown -R www-data:www-data "$CLIENT_DST_DIR"
+sudo chmod -R 755 "$CLIENT_DST_DIR"
+
+# --- Create Nginx config ---
+echo "🛠️ Writing Nginx config to $NGINX_CONFIG_PATH..."
+sudo tee "$NGINX_CONFIG_PATH" > /dev/null <<EOF
+server {
+    listen 443 ssl;
+    server_name _;
+
+    ssl_certificate     $CERT_PATH;
+    ssl_certificate_key $KEY_PATH;
+
+    location = /cli {
+        return 301 /cli/;
+    }
+
+    location /cli/ {
+        alias $CLIENT_DST_DIR/;
+        index index.html;
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    location /cli/ws {
+        proxy_pass http://localhost:12000/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+    }
+}
+EOF
+
+# --- Enable site ---
+echo "🔗 Enabling site..."
+sudo ln -sf "$NGINX_CONFIG_PATH" "$NGINX_ENABLED_PATH"
+
+# --- Disable default site if it exists ---
+if [ -f /etc/nginx/sites-enabled/default ]; then
+    echo "🚫 Disabling default site..."
+    sudo rm /etc/nginx/sites-enabled/default
+fi
+
+# --- Reload Nginx ---
+echo "🔁 Reloading Nginx..."
+sudo nginx -t
+sudo systemctl reload nginx
+
+echo ""
+echo "✅ WebCLI client is now available at:"
+echo "   https://<your-server-ip>/cli/"
+echo "   (You may need to accept the self-signed cert warning in your browser)"
