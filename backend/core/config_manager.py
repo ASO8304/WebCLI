@@ -5,7 +5,7 @@ import re
 from core.validators import *  
 
 # Directory where config files are stored
-CONFIG_DIR = "/etc/knsp"
+CONFIG_DIR = "/etc/webcli"
 
 # Mapping of config file names to their edit functions
 CONFIG_MAP = {
