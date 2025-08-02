@@ -37,7 +37,7 @@ async def admin_handler(websocket, username):
                 except asyncio.CancelledError:
                     pass
                 running_task = None
-                await send_prompt_if_needed()
+                await send_prompt()
                 continue
             else:
                 await websocket.send_text("⚠️ No running command to interrupt.")
@@ -85,7 +85,7 @@ async def admin_handler(websocket, username):
             def done_callback(task):
                 nonlocal running_task
                 running_task = None
-                asyncio.create_task(send_prompt_if_needed())
+                asyncio.create_task(send_prompt())
 
             running_task.add_done_callback(done_callback)
 
