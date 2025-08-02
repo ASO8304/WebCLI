@@ -2,13 +2,13 @@
 const terminal = document.getElementById("terminal");
 
 // WebSocket setup
-// Uncomment the line below for manual connection (bypassing nginx) format: "ws://<target_server_ip>:<target_server_port>/ws"
+// Uncomment the line below for manual connection (bypassing nginx)
 // let socket = new WebSocket("ws://192.168.56.105:12000/ws");
 
 // Default: dynamic WebSocket connection through Nginx reverse proxy (recommended)
 let loc = window.location;
 let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);
+let socket = new WebSocket(`${wsProtocol}://${loc.host}/cli/ws`);
 // Command history tracking
 let history = [];
 let historyIndex = -1;
