@@ -75,82 +75,75 @@ systemctl status webcli</pre>
     </li>
   </ol>
 
-  <h2>🚀 Usage</h2>
+<h2>🚀 Usage</h2>
 
 <p>You can use the Web CLI in two different ways:</p>
 
-<h3>🔹 Option 1: Open the HTML File Directly</h3>
+<h3>🔹 Option 1: Serve the Web UI via Nginx (Recommended)</h3>
 <ol>
   <li>
-    Copy the HTML (with its CSS & JS) client UI from the config directory to your home folder:
+    Ensure you are in the <code>client/</code> directory:
     <pre>
-cp -ra /etc/webcli/config/ ~/webcli_ui
-chown -R &lt;your_username&gt;: ~/webcli_ui
-chmod -R 640 ~/webcli_ui
-chmod 755 ~/webcli_ui</pre>
-    <p>Replace <code>&lt;your_username&gt;</code> with your actual Linux username.</p>
-  </li>
-
-  <li>
-    Open the HTML file using your browser:
-    <pre>
-xdg-open ~/webcli_ui/index.html</pre>
-    <p>Or manually open it via your file manager.</p>
-  </li>
-
-  <li>
-    You’ll see a browser-based Linux terminal UI. Log in and try:
-    <pre>
-(root)$ help
-(root)$ tcpdump
-(root)$ tcpdump http</pre>
-  </li>
-</ol>
-
-<h3>🔹 Option 2: Serve the Web UI via Nginx (Recommended)</h3>
-<ol>
-  <li>Install Nginx:
-    <pre>sudo apt update && sudo apt install nginx -y</pre>
-  </li>
-
-  <li>Copy the client files into the Nginx web root:
-    <pre>
-sudo mkdir -p /var/www/webcli
-sudo cp -r /etc/webcli/config/* /var/www/webcli/
-sudo chown -R www-data:www-data /var/www/webcli
-sudo chmod -R 755 /var/www/webcli</pre>
-  </li>
-
-  <li>
-    Copy your custom Nginx config file <code>nginx_webcli.conf</code> into the sites-available directory:
-    <pre>sudo cp /path/to/nginx_webcli.conf /etc/nginx/sites-available/webcli</pre>
-    Replace <code>/path/to/nginx_webcli.conf</code> with the actual path where your config file is.
-  </li>
-
-  <li>
-    Enable the site by creating a symbolic link:
-    <pre>sudo ln -s /etc/nginx/sites-available/webcli /etc/nginx/sites-enabled/</pre>
-  </li>
-
-  <li>
-    (Optional) Disable the default site:
-    <pre>sudo unlink /etc/nginx/sites-enabled/default</pre>
-  </li>
-
-  <li>
-    Test Nginx config and reload:
-    <pre>
-sudo nginx -t
-sudo systemctl reload nginx
+cd /path/to/WebCLI-main/client
     </pre>
   </li>
 
   <li>
-    Now visit <code>http://&lt;your-server-ip&gt;/cli/</code> in your browser.
-    <br />
-    You’ll see the Web CLI without needing to open the HTML manually.
+    Run the provided setup script to configure Nginx and deploy the UI:
+    <pre>
+chmod +x setup_nginx_webcli.sh
+sudo ./setup_nginx_webcli.sh
+    </pre>
+  </li>
+
+  <li>
+    Once complete, open your browser and navigate to:
+    <pre>http://&lt;your-server-ip&gt;/webcli/</pre>
+    <p>You’ll see the browser-based terminal. Log in and try commands:</p>
+    <pre>
+(root)$ help
+(root)$ tcpdump
+(root)$ userctl add</pre>
   </li>
 </ol>
+
+<h3>🔹 Option 2: Run the Web UI Manually (Direct File Access)</h3>
+<ol>
+  <li>
+    Open <code>script.js</code> in your code editor and locate this section:
+    <pre><code>
+// let socket = new WebSocket("ws://192.168.56.105:12000/ws");
+let loc = window.location;
+let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);
+    </code></pre>
+    <p>Comment out the dynamic WebSocket line and uncomment the manual IP-based one:</p>
+    <pre><code>
+let socket = new WebSocket("ws://192.168.56.105:12000/ws");
+// let loc = window.location;
+// let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+// let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);
+    </code></pre>
+    <p>Replace the IP address with your server's actual IP if needed.</p>
+  </li>
+
+  <li>
+    Open the HTML file directly in your browser:
+    <pre>
+xdg-open index.html
+    </pre>
+    <p>Or double-click <code>index.html</code> to open it manually.</p>
+  </li>
+
+  <li>
+    You can now interact with the Web CLI directly over WebSocket:
+    <pre>
+(root)$ config
+(root)$ tcpdump -i eth0
+(root)$ userctl list</pre>
+  </li>
+</ol>
+
 
   <h2>🛡️ Security Notes</h2>
   <ul>
