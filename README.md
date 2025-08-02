@@ -84,16 +84,13 @@ systemctl status webcli</pre>
   <li>
     Ensure you are in the <code>client/</code> directory:
     <pre>
-cd /path/to/WebCLI-main/client
-    </pre>
+cd /path/to/WebCLI-main/client</pre>
   </li>
 
   <li>
-    Run the provided setup script to configure Nginx and deploy the UI:
-    <pre>
+    Run the provided setup script to configure Nginx and deploy the UI:<pre>
 chmod +x setup_nginx_webcli.sh
-sudo ./setup_nginx_webcli.sh
-    </pre>
+sudo ./setup_nginx_webcli.sh</pre>
   </li>
 
   <li>
@@ -115,23 +112,19 @@ sudo ./setup_nginx_webcli.sh
 // let socket = new WebSocket("ws://192.168.56.105:12000/ws");
 let loc = window.location;
 let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);
-    </code></pre>
-    <p>Comment out the dynamic WebSocket line and uncomment the manual IP-based one:</p>
-    <pre><code>
+let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre>
+    <p>Comment out the dynamic WebSocket line and uncomment the manual IP-based one:</p><pre><code>
 let socket = new WebSocket("ws://192.168.56.105:12000/ws");
 // let loc = window.location;
 // let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-// let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);
-    </code></pre>
+// let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre>
     <p>Replace the IP address with your server's actual IP if needed.</p>
   </li>
 
   <li>
     Open the HTML file directly in your browser:
     <pre>
-xdg-open index.html
-    </pre>
+xdg-open index.html</pre>
     <p>Or double-click <code>index.html</code> to open it manually.</p>
   </li>
 
