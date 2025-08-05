@@ -40,7 +40,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_text(f"{prefix}Enter your username: ")
             username = await websocket.receive_text()
 
-            await websocket.send_text(f"{prefix}Enter your password: ")
+            await websocket.send_text(f"{prefix}[PASSWORD]Enter your password: ")
             password= await websocket.receive_text()
     
             # Load user info
