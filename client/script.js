@@ -1,203 +1,190 @@
-// Get terminal container element
-const terminal = document.getElementById("terminal");
+/* ─────────── Terminal + WebSocket Frontend ─────────── */
+/* eslint-disable  no-console                           */
 
-// WebSocket setup
-// Uncomment the line below for manual connection (bypassing nginx)
-// let socket = new WebSocket("ws://192.168.56.105:12000/ws");
+console.log(
+  "%c✅ script.js (invisible-password v1) loaded",
+  "color:lime;font-weight:bold"
+);
 
-// Default: dynamic WebSocket connection through Nginx reverse proxy (recommended)
-let loc = window.location;
-let wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
-let socket = new WebSocket(`${wsProtocol}://${loc.host}/cli/ws`);
-// Command history tracking
-let history = [];
-let historyIndex = -1;
+/* -------------- DOM + WebSocket setup --------------- */
+const terminal   = document.getElementById("terminal");
 
-// Track current input line and its previous value (used for autocomplete)
-let inputLine = null;
-let restoreInputValue = null;
+// Manual connection (bypass nginx)
+// const socket = new WebSocket("ws://192.168.56.105:12000/ws");
 
-// When WebSocket is opened
-socket.onopen = () => {
+// Default: through nginx reverse-proxy
+const loc        = window.location;
+const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
+const socket     = new WebSocket(`${wsProtocol}://${loc.host}/cli/ws`);
+
+/* ---------------------- State ----------------------- */
+let history      = [];
+let historyIdx   = -1;
+let inputLine    = null;     // <div class="line"> currently active
+let restoreBuf   = null;     // temp buffer for autocomplete
+
+/* ------------- WebSocket event handlers ------------- */
+socket.addEventListener("open", () => {
   appendLine("🔌 Connecting to server...");
-};
+});
 
-// When a message is received from backend
-socket.onmessage = (event) => {
-  const msg = event.data;
-
-  // Check if it's a prompt for user input
-  if (msg.startsWith(">>>PROMPT:")) {
-    const promptText = msg.slice(10);
-    createInputLine(promptText); // Create new prompt with input
+socket.addEventListener("message", ({ data }) => {
+  if (data.startsWith(">>>PROMPT:")) {
+    createInputLine(data.slice(10));     // strip prefix
+    return;
   }
-
-  // Handle autocomplete response
-  else if (msg.startsWith("__AUTOCOMPLETE__:")) {
-    const suggestion = msg.slice(17).trim();
-    console.log("🧠 Received autocomplete:", suggestion);
-
-    // If backend suggests replacing the input
-    if (suggestion.startsWith("[REPLACE]")) {
-      const newValue = suggestion.slice(9);
-      const input = inputLine.querySelector("input");
-      input.value = newValue + " "; // Replace input and add space
-      input.focus(); // Focus to keep editing
-    }
-
-    // Show multiple autocomplete suggestions
-    else if (suggestion.startsWith("[MATCHES]")) {
-      const matches = suggestion.slice(9).trim();
-      appendLine(matches); // Display suggestions
-      const input = inputLine.querySelector("input");
-      input.focus(); // Keep focus on input
-    }
-
-    // No matches found — flash background
-    else if (suggestion.startsWith("[NOMATCHES]")) {
-      terminal.style.backgroundColor = "#331111";
-      setTimeout(() => terminal.style.backgroundColor = "", 100);
-    }
-
-    // Unknown format
-    else {
-      appendLine("❓ Unknown autocomplete suggestion format.");
-    }
+  if (data.startsWith("__AUTOCOMPLETE__:")) {
+    handleAutocomplete(data.slice(17).trim());
+    return;
   }
+  appendLine(data);                      // regular output
+});
 
-  // Default case — just print text
-  else {
-    appendLine(msg);
-  }
-};
-
-// Handle disconnection
-socket.onclose = () => {
+socket.addEventListener("close", () => {
   appendLine("❌ Disconnected from server.");
-};
+});
 
-// Append a line of text to terminal
+/* ----------------- Helper: print line ---------------- */
 function appendLine(text) {
   const line = document.createElement("div");
   line.className = "line";
   line.textContent = text;
   terminal.appendChild(line);
-  terminal.scrollTop = terminal.scrollHeight; // Auto-scroll to bottom
+  terminal.scrollTop = terminal.scrollHeight;
 }
 
-// Create a new input line for user command
-function createInputLine(promptText = "") {
-  // Disable previous input line
-  if (inputLine) {
-    inputLine.querySelector("input").disabled = true;
-  }
+/* ------------ Helper: autocomplete handler ---------- */
+function handleAutocomplete(payload) {
+  if (!inputLine) return;
 
-  // Create new line
-  const line = document.createElement("div");
+  const inp = inputLine.querySelector("input");
+  if (!inp) return;
+
+  if (payload.startsWith("[REPLACE]")) {
+    inp.value = payload.slice(9) + " ";
+    inp.focus();
+  } else if (payload.startsWith("[MATCHES]")) {
+    appendLine(payload.slice(9).trim());
+    inp.focus();
+  } else if (payload.startsWith("[NOMATCHES]")) {
+    terminal.style.backgroundColor = "#331111";
+    setTimeout(() => (terminal.style.backgroundColor = ""), 100);
+  } else {
+    appendLine("❓ Unknown autocomplete payload.");
+  }
+}
+
+/* ------------- Core: create new prompt -------------- */
+function createInputLine(promptText = "") {
+  /* disable previous input */
+  if (inputLine) inputLine.querySelector("input").disabled = true;
+
+  const line   = document.createElement("div");
   line.className = "line";
 
-  // Prompt text (e.g. >>>PROMPT:(root)$ )
   const prompt = document.createElement("span");
   prompt.className = "prompt";
-  prompt.textContent = promptText;
 
-  // Input field
-  const input = document.createElement("input");
-  input.className = "input";
-  input.type = "text";
-  input.autofocus = true;
-
-  // Restore previous value after autocomplete
-  if (restoreInputValue !== null) {
-    input.value = restoreInputValue;
-    restoreInputValue = null;
+  /* Determine if this is a password prompt */
+  const pwMode = promptText.startsWith("[PASSWORD]");
+  if (pwMode) {
+    prompt.textContent = promptText.replace(/^\[PASSWORD]/, "").trim();
+  } else {
+    prompt.textContent = promptText;
   }
 
-  // Assemble line and add to terminal
-  line.appendChild(prompt);
-  line.appendChild(input);
+  /* ---- Create input ---- */
+  const inp = document.createElement("input");
+  inp.className = "input";
+
+  if (pwMode) {
+    /* Invisible password capture */
+    inp.type  = "password";
+    inp.style.opacity      = "0";              // hide bullets
+    inp.style.caretColor   = "transparent";    // hide caret
+    inp.autocomplete       = "off";
+  } else {
+    inp.type = "text";
+  }
+
+  /* Restore text after autocomplete (for non-password prompts) */
+  if (!pwMode && restoreBuf !== null) {
+    inp.value   = restoreBuf;
+    restoreBuf  = null;
+  }
+
+  /* Assemble line */
+  line.append(prompt, inp);
   terminal.appendChild(line);
   terminal.scrollTop = terminal.scrollHeight;
-  input.focus();
+  inp.focus();
 
-  // Handle key events inside input
-  input.addEventListener("keydown", (e) => {
-    // Enter: send command to backend
+  /* ---------- Key handling ---------- */
+  let pwBuf = "";                         // only used in password mode
+
+  inp.addEventListener("keydown", (e) => {
+    /* Invisible password capture branch */
+    if (pwMode) {
+      if (e.key === "Enter") {
+        socket.send(pwBuf);               // send buffer
+        pwBuf = "";
+      } else if (e.key === "Backspace") {
+        pwBuf = pwBuf.slice(0, -1);
+      } else if (e.key.length === 1) {    // printable char
+        pwBuf += e.key;
+      } /* ignore arrow, tab, Ctrl-C/L, etc. */
+      e.preventDefault();                 // never let char go into <input>
+      return;
+    }
+
+    /* ---------- Normal prompt branch ---------- */
     if (e.key === "Enter") {
-      const command = input.value.trim();
-      restoreInputValue = null;
-      if (command) {
-        history.push(command);
-        historyIndex = history.length;
-        socket.send(command);
+      const cmd = inp.value.trim();
+      restoreBuf = null;
+      if (cmd) {
+        history.push(cmd);
+        historyIdx = history.length;
+        socket.send(cmd);
       }
-    }
-
-    // Up arrow: show previous command
-    else if (e.key === "ArrowUp") {
-      if (historyIndex > 0) {
-        historyIndex--;
-        input.value = history[historyIndex];
+    } else if (e.key === "ArrowUp") {
+      if (historyIdx > 0) {
+        historyIdx--;
+        inp.value = history[historyIdx];
       }
       e.preventDefault();
-    }
-
-    // Down arrow: show next command
-    else if (e.key === "ArrowDown") {
-      if (historyIndex < history.length - 1) {
-        historyIndex++;
-        input.value = history[historyIndex];
+    } else if (e.key === "ArrowDown") {
+      if (historyIdx < history.length - 1) {
+        historyIdx++;
+        inp.value = history[historyIdx];
       } else {
-        historyIndex = history.length;
-        input.value = "";
+        historyIdx = history.length;
+        inp.value  = "";
       }
       e.preventDefault();
-    }
-
-    // Tab: trigger autocomplete request
-    else if (e.key === "Tab") {
+    } else if (e.key === "Tab") {
       e.preventDefault();
       setTimeout(() => {
-        const currentInput = input.value;
-        restoreInputValue = currentInput;
-        socket.send(`__TAB__:${currentInput}`);
+        restoreBuf = inp.value;
+        socket.send(`__TAB__:${restoreBuf}`);
       }, 0);
-    }
-
-    // Ctrl+C: send interrupt signal
-    else if (e.ctrlKey && e.key === "c") {
+    } else if (e.ctrlKey && e.key === "c") {
       e.preventDefault();
-      restoreInputValue = null;
+      restoreBuf = null;
       socket.send("__INTERRUPT__");
-    }
-
-    // Ctrl+L: clear screen except input
-    else if (e.ctrlKey && (e.key === "l" || e.key === "L")) {
+    } else if (e.ctrlKey && (e.key === "l" || e.key === "L")) {
       e.preventDefault();
-      if (inputLine) {
-        Array.from(terminal.children).forEach(child => {
-          if (child !== inputLine) {
-            terminal.removeChild(child);
-          }
-        });
-        terminal.scrollTop = 0;
-        const input = inputLine.querySelector("input");
-        if (input && !input.disabled) {
-          input.focus();
-        }
-      }
+      Array.from(terminal.children).forEach((child) => {
+        if (child !== line) terminal.removeChild(child);
+      });
+      terminal.scrollTop = 0;
+      inp.focus();
     }
   });
 
-  // Auto-focus input on terminal click
-  document.addEventListener("click", () => {
-    if (inputLine) {
-      const input = inputLine.querySelector("input");
-      if (input && !input.disabled) {
-        input.focus();
-      }
-    }
+  /* Focus input when clicking anywhere on terminal */
+  terminal.addEventListener("click", () => {
+    if (!inp.disabled) inp.focus();
   });
 
-  inputLine = line; // Track current input line
+  inputLine = line;
 }
