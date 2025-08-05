@@ -35,7 +35,7 @@ sudo rsync $RSYNC_OPTS "${SRC_DIR}/core/" "${DEST_DIR}/core/"
 
 # ------- REPLACE webcli_server --------------------------------------
 echo "[$LOG_TAG] Updating webcli_server.app"
-sudo install -m 644 "${SRC_DIR}/webcli_server.py" "${DEST_DIR}/webcli_server.app"
+sudo install -m 644 "${SRC_DIR}/webcli_server.py" "${DEST_DIR}/webcli_server.py"
 
 logger -t "$LOG_TAG" "Backend update completed successfully."
 echo "[$LOG_TAG] Done."
