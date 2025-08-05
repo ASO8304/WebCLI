@@ -1,5 +1,5 @@
 import asyncio
-from backend.core.iptables_runner import handle_iptables
+from core.iptables_runner import handle_iptables
 from core.command_control import cmd_config
 from core.tcpdump_runner import handle_tcpdump
 from core.userctl_runner import handle_userctl
