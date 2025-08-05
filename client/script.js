@@ -1,8 +1,8 @@
 /* ─────────── Terminal + WebSocket Frontend ─────────── */
-/* eslint-disable  no-console                           */
+/* eslint-disable no-console                            */
 
 console.log(
-  "%c✅ script.js (invisible-pw + temp-dot v1) loaded",
+  "%c✅ script.js (suggest-prompt + no spellcheck) loaded",
   "color:lime;font-weight:bold"
 );
 
@@ -18,10 +18,10 @@ const wsProtocol = loc.protocol === "https:" ? "wss" : "ws";
 const socket     = new WebSocket(`${wsProtocol}://${loc.host}/cli/ws`);
 
 /* ---------------------- State ----------------------- */
-let history      = [];
-let historyIdx   = -1;
-let inputLine    = null;     // active <div class="line">
-let restoreBuf   = null;     // temp buffer for autocomplete
+let history     = [];
+let historyIdx  = -1;
+let inputLine   = null;     // active <div class="line">
+let restoreBuf  = null;     // temp buffer for autocomplete
 
 /* ------------- WebSocket event handlers ------------- */
 socket.addEventListener("open", () => {
@@ -30,14 +30,14 @@ socket.addEventListener("open", () => {
 
 socket.addEventListener("message", ({ data }) => {
   if (data.startsWith(">>>PROMPT:")) {
-    createInputLine(data.slice(10));          // strip prefix
+    createInputLine(data.slice(10));           // strip prefix
     return;
   }
   if (data.startsWith("__AUTOCOMPLETE__:")) {
     handleAutocomplete(data.slice(17).trim());
     return;
   }
-  appendLine(data);                           // regular output
+  appendLine(data);                            // regular output
 });
 
 socket.addEventListener("close", () => {
@@ -56,15 +56,22 @@ function appendLine(text) {
 /* ------------ Helper: autocomplete handler ---------- */
 function handleAutocomplete(payload) {
   if (!inputLine) return;
-  const inp = inputLine.querySelector("input");
+  const inp     = inputLine.querySelector("input");
+  const prompt  = inputLine.querySelector(".prompt");
   if (!inp) return;
 
   if (payload.startsWith("[REPLACE]")) {
     inp.value = payload.slice(9) + " ";
     inp.focus();
   } else if (payload.startsWith("[MATCHES]")) {
+    /* show list then spawn new prompt pre-filled with existing input */
     appendLine(payload.slice(9).trim());
-    inp.focus();
+
+    const currentTyped = inp.value;
+    inp.disabled = true;                 // freeze old input
+
+    restoreBuf = currentTyped;           // will be restored in new prompt
+    createInputLine(prompt.textContent); // build fresh prompt on next line
   } else if (payload.startsWith("[NOMATCHES]")) {
     terminal.style.backgroundColor = "#331111";
     setTimeout(() => (terminal.style.backgroundColor = ""), 100);
@@ -87,7 +94,7 @@ function createInputLine(promptText = "") {
   /* disable previous input */
   if (inputLine) inputLine.querySelector("input").disabled = true;
 
-  const line   = document.createElement("div");
+  const line = document.createElement("div");
   line.className = "line";
 
   const prompt = document.createElement("span");
@@ -103,23 +110,25 @@ function createInputLine(promptText = "") {
 
   /* ---- Create input ---- */
   const inp = document.createElement("input");
-  inp.className = "input";
-  inp.spellcheck      = false;   // no spell-checking
-  
+  inp.className        = "input";
+  inp.spellcheck       = false;      // remove red underline
+  inp.autocorrect      = "off";
+  inp.autocapitalize   = "off";
+
   if (pwMode) {
     /* Invisible password capture */
-    inp.type  = "password";
-    inp.style.opacity    = "0";               // hide bullets
-    inp.style.caretColor = "transparent";     // hide caret
-    inp.autocomplete     = "off";
+    inp.type            = "password";
+    inp.style.opacity   = "0";            // hide bullets
+    inp.style.caretColor = "transparent"; // hide caret
+    inp.autocomplete    = "off";
   } else {
     inp.type = "text";
   }
 
-  /* Restore text after autocomplete (non-pw prompts) */
+  /* Restore buffer after autocomplete (non-pw prompts) */
   if (!pwMode && restoreBuf !== null) {
-    inp.value   = restoreBuf;
-    restoreBuf  = null;
+    inp.value  = restoreBuf;
+    restoreBuf = null;
   }
 
   /* Assemble line */
@@ -129,7 +138,7 @@ function createInputLine(promptText = "") {
   inp.focus();
 
   /* ---------- Key handling ---------- */
-  let pwBuf = "";                         // only for password mode
+  let pwBuf = "";                       // only for password mode
 
   inp.addEventListener("keydown", (e) => {
     /* -------- Invisible password branch -------- */
@@ -141,11 +150,11 @@ function createInputLine(promptText = "") {
       } else if (e.key === "Backspace") {
         pwBuf = pwBuf.slice(0, -1);
         showTempDot(prompt);
-      } else if (e.key.length === 1) {    // printable char
+      } else if (e.key.length === 1) {  // printable char
         pwBuf += e.key;
         showTempDot(prompt);
       }
-      e.preventDefault();                 // suppress any visible change
+      e.preventDefault();               // suppress visible changes
       return;
     }
 
