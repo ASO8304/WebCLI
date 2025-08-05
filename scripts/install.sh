@@ -55,7 +55,7 @@ sudo -u "$USERNAME" "$PYTHON_BIN" -m venv "$VENV_DIR"
 
 echo "Installing Python dependencies ..."
 sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install --upgrade pip
-sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard]"
+sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard] configupdater"
 
 # Deploy backend and config
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
