@@ -1,4 +1,4 @@
-import configparser
+from configupdater import ConfigUpdater
 import os
 import fnmatch
 import re
@@ -11,7 +11,7 @@ CONFIG_DIR = "/etc/webcli"
 CONFIG_MAP = {
     "settings.test": "edit_ini_format",
     "example.ini": "edit_example_ini",           # Placeholder
-    "custom_config.json": "edit_custom_json"     # Placeholder
+    "custom_config.json": "edit_custom_json",    # Placeholder
 }
 
 
@@ -80,22 +80,21 @@ async def show(websocket, prompt):
 # settings.test Editor (INI-style)
 # ========================
 
+
 async def edit_ini_format(websocket, prompt, config_path):
     if not os.path.exists(config_path):
         await websocket.send_text(f"❌ Config file not found: {config_path}")
         return
 
-    parser = configparser.RawConfigParser(strict=False)
-    parser.optionxform = str  # preserve case
-
+    updater = ConfigUpdater()
+    updater.optionxform = str  # ✅ preserve case of keys
     try:
-        with open(config_path, "r", encoding="utf-8-sig") as f:
-            parser.read_file(f)
+        updater.read(config_path, encoding="utf-8-sig")
     except Exception as e:
         await websocket.send_text(f"❌ Failed to parse config: {e}")
         return
 
-    sections = parser.sections()
+    sections = updater.sections()
     if not sections:
         await websocket.send_text("⚠️ No sections found.")
         return
@@ -104,8 +103,8 @@ async def edit_ini_format(websocket, prompt, config_path):
     await websocket.send_text(f"📁 Sections in {os.path.basename(config_path)}:")
     for i, section in enumerate(sections, 1):
         await websocket.send_text(f"{i}. {section}")
-    await websocket.send_text(f">>>PROMPT:Enter number to select section: ")
 
+    await websocket.send_text(f">>>PROMPT:Enter number to select section: ")
     while True:
         section_input = await websocket.receive_text()
         if not section_input.isdigit() or not (1 <= int(section_input) <= len(sections)):
@@ -113,20 +112,17 @@ async def edit_ini_format(websocket, prompt, config_path):
             continue
         break
 
-    selected_section = sections[int(section_input) - 1]
-    options = parser.options(selected_section)
+    selected_section_name = sections[int(section_input) - 1]
+    selected_section = updater[selected_section_name]
+
+    options = list(selected_section.items())  # [(key, Option)]
     if not options:
         await websocket.send_text("⚠️ No keys found in this section.")
         return
 
-    await websocket.send_text(f"📂 Keys in [{selected_section}]:")
-    for i, key in enumerate(options, 1):
-        try:
-            value = parser.get(selected_section, key, fallback="")
-            display = value if value else "[empty]"
-            await websocket.send_text(f"{i}. {key} = {display}")
-        except Exception as e:
-            await websocket.send_text(f"❌ Error reading key '{key}': {e}")
+    await websocket.send_text(f"📂 Keys in [{selected_section_name}]:")
+    for i, (key, option) in enumerate(options, 1):
+        await websocket.send_text(f"{i}. {key} = {option.value}")
 
     while True:
         await websocket.send_text(f">>>PROMPT:Type 'edit <number>' to change a value or 'back' to return: ")
@@ -148,29 +144,26 @@ async def edit_ini_format(websocket, prompt, config_path):
                 await websocket.send_text("❗ Invalid key number.")
                 continue
 
-            selected_key = options[key_index - 1]
-            current_value = parser.get(selected_section, selected_key)
-            await websocket.send_text(f"🔧 Editing {selected_key} (current = {current_value})")
+            selected_key, selected_option = options[key_index - 1]
+            await websocket.send_text(f"🔧 Editing {selected_key} (current = {selected_option.value})")
             await websocket.send_text(f">>>PROMPT:Enter new value for {selected_key}: ")
 
             new_value = await websocket.receive_text()
 
-            # Validate if a validator exists
             validator = get_validator(selected_key)
             if validator and not validator(new_value):
                 await websocket.send_text(f"Invalid value for {selected_key}. Please try again.")
                 continue
-            
-            parser.set(selected_section, selected_key, new_value)
+
+            selected_option.value = new_value
 
             try:
                 with open(config_path, "w", encoding="utf-8") as f:
-                    parser.write(f)
+                    updater.write(f)
                 await websocket.send_text(f"✅ Updated: {selected_key} = {new_value}")
             except Exception as e:
                 await websocket.send_text(f"❌ Failed to write config: {e}")
-
-            return  # Return to config file menu after edit
+            return
 
 
 
