@@ -1,4 +1,5 @@
 import asyncio
+from backend.core.iptables_runner import handle_iptables
 from core.command_control import cmd_config
 from core.tcpdump_runner import handle_tcpdump
 from core.userctl_runner import handle_userctl
@@ -58,23 +59,30 @@ async def root_handler(websocket, username):
             new_prompt_flag = True
             continue
 
-        # Built-in commands
+        # Signout
         if cmd == "signout":
             await websocket.send_text("🚪 Signing out...")
             return True
 
+        # Help
         elif cmd == "help":
-            await websocket.send_text("🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl")
+            await websocket.send_text(
+                "🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl, iptables"
+            )
 
+        # Config    
         elif cmd == "config":
             should_return = await cmd_config(websocket, prompt)
             if not should_return:
                 return False
             await websocket.send_text("🔙 Returned from config mode.")
 
+        # Userctl
         elif cmd.startswith("userctl ") or cmd == "userctl":
             await handle_userctl(websocket, cmd)
 
+
+        # Tcpdump
         elif cmd.startswith("tcpdump ") or cmd == "tcpdump":
             running_task = asyncio.create_task(handle_tcpdump(websocket, cmd))
 
@@ -85,7 +93,8 @@ async def root_handler(websocket, username):
                 asyncio.create_task(send_prompt())
 
             running_task.add_done_callback(done_callback)
-
+        
+        # Systemctl
         elif cmd.startswith("systemctl ") or cmd == "systemctl":
             running_task = asyncio.create_task(handle_systemctl(websocket, cmd))
 
@@ -94,6 +103,17 @@ async def root_handler(websocket, username):
                 running_task = None
                 asyncio.create_task(send_prompt())
                 
+            running_task.add_done_callback(done_callback)
+        
+        # Iptables
+        elif cmd.startswith("iptables ") or cmd == "iptables":
+            running_task = asyncio.create_task(handle_iptables(websocket, cmd))
+
+            def done_callback(task):
+                nonlocal running_task
+                running_task = None
+                asyncio.create_task(send_prompt())
+
             running_task.add_done_callback(done_callback)
 
         else:
