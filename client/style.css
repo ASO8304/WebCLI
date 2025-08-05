@@ -48,3 +48,5 @@ body {
 #terminal {
   cursor: text; /* show text cursor when hovering */
 }
+
+.pw-dot { opacity: 0.9; }

@@ -2,12 +2,12 @@
 /* eslint-disable  no-console                           */
 
 console.log(
-  "%c✅ script.js (invisible-password v1) loaded",
+  "%c✅ script.js (invisible-pw + temp-dot v1) loaded",
   "color:lime;font-weight:bold"
 );
 
 /* -------------- DOM + WebSocket setup --------------- */
-const terminal   = document.getElementById("terminal");
+const terminal = document.getElementById("terminal");
 
 // Manual connection (bypass nginx)
 // const socket = new WebSocket("ws://192.168.56.105:12000/ws");
@@ -20,7 +20,7 @@ const socket     = new WebSocket(`${wsProtocol}://${loc.host}/cli/ws`);
 /* ---------------------- State ----------------------- */
 let history      = [];
 let historyIdx   = -1;
-let inputLine    = null;     // <div class="line"> currently active
+let inputLine    = null;     // active <div class="line">
 let restoreBuf   = null;     // temp buffer for autocomplete
 
 /* ------------- WebSocket event handlers ------------- */
@@ -30,14 +30,14 @@ socket.addEventListener("open", () => {
 
 socket.addEventListener("message", ({ data }) => {
   if (data.startsWith(">>>PROMPT:")) {
-    createInputLine(data.slice(10));     // strip prefix
+    createInputLine(data.slice(10));          // strip prefix
     return;
   }
   if (data.startsWith("__AUTOCOMPLETE__:")) {
     handleAutocomplete(data.slice(17).trim());
     return;
   }
-  appendLine(data);                      // regular output
+  appendLine(data);                           // regular output
 });
 
 socket.addEventListener("close", () => {
@@ -56,7 +56,6 @@ function appendLine(text) {
 /* ------------ Helper: autocomplete handler ---------- */
 function handleAutocomplete(payload) {
   if (!inputLine) return;
-
   const inp = inputLine.querySelector("input");
   if (!inp) return;
 
@@ -72,6 +71,15 @@ function handleAutocomplete(payload) {
   } else {
     appendLine("❓ Unknown autocomplete payload.");
   }
+}
+
+/* --------------- Visual feedback helper ------------- */
+function showTempDot(promptEl) {
+  const dot = document.createElement("span");
+  dot.className = "pw-dot";
+  dot.textContent = " •";
+  promptEl.appendChild(dot);
+  setTimeout(() => promptEl.removeChild(dot), 120);
 }
 
 /* ------------- Core: create new prompt -------------- */
@@ -96,18 +104,19 @@ function createInputLine(promptText = "") {
   /* ---- Create input ---- */
   const inp = document.createElement("input");
   inp.className = "input";
-
+  inp.spellcheck      = false;   // no spell-checking
+  
   if (pwMode) {
     /* Invisible password capture */
     inp.type  = "password";
-    inp.style.opacity      = "0";              // hide bullets
-    inp.style.caretColor   = "transparent";    // hide caret
-    inp.autocomplete       = "off";
+    inp.style.opacity    = "0";               // hide bullets
+    inp.style.caretColor = "transparent";     // hide caret
+    inp.autocomplete     = "off";
   } else {
     inp.type = "text";
   }
 
-  /* Restore text after autocomplete (for non-password prompts) */
+  /* Restore text after autocomplete (non-pw prompts) */
   if (!pwMode && restoreBuf !== null) {
     inp.value   = restoreBuf;
     restoreBuf  = null;
@@ -120,24 +129,27 @@ function createInputLine(promptText = "") {
   inp.focus();
 
   /* ---------- Key handling ---------- */
-  let pwBuf = "";                         // only used in password mode
+  let pwBuf = "";                         // only for password mode
 
   inp.addEventListener("keydown", (e) => {
-    /* Invisible password capture branch */
+    /* -------- Invisible password branch -------- */
     if (pwMode) {
       if (e.key === "Enter") {
-        socket.send(pwBuf);               // send buffer
+        socket.send(pwBuf);
         pwBuf = "";
+        showTempDot(prompt);
       } else if (e.key === "Backspace") {
         pwBuf = pwBuf.slice(0, -1);
+        showTempDot(prompt);
       } else if (e.key.length === 1) {    // printable char
         pwBuf += e.key;
-      } /* ignore arrow, tab, Ctrl-C/L, etc. */
-      e.preventDefault();                 // never let char go into <input>
+        showTempDot(prompt);
+      }
+      e.preventDefault();                 // suppress any visible change
       return;
     }
 
-    /* ---------- Normal prompt branch ---------- */
+    /* -------- Normal prompt branch -------- */
     if (e.key === "Enter") {
       const cmd = inp.value.trim();
       restoreBuf = null;
