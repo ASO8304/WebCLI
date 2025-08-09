@@ -1,26 +1,40 @@
 import json
-import hashlib
 import asyncio
+from pathlib import Path
+
+# Strong password hashing: Argon2id
+from argon2 import PasswordHasher
 
 FILE_DIR = "/etc/webcli"
-USERS_FILE = f"{FILE_DIR}/users.json"
-PASS_FILE = f"{FILE_DIR}/pass.json"
+USERS_FILE = str(Path(FILE_DIR) / "users.json")
+PASS_FILE = str(Path(FILE_DIR) / "pass.json")
+
+# Root is managed separately; do not allow assigning 'root' here.
 VALID_ROLES = ["admin", "operator", "viewer"]
 
+# Match server parameters
+PH = PasswordHasher(
+    time_cost=3,
+    memory_cost=64 * 1024,  # 64 MiB
+    parallelism=2,
+    hash_len=32,
+    salt_len=16,
+)
+
 def load_users():
-    with open(USERS_FILE, "r") as f:
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_users(users):
-    with open(USERS_FILE, "w") as f:
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(users, f, indent=2)
 
 def load_passwords():
-    with open(PASS_FILE, "r") as f:
+    with open(PASS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_passwords(passwords):
-    with open(PASS_FILE, "w") as f:
+    with open(PASS_FILE, "w", encoding="utf-8") as f:
         json.dump(passwords, f, indent=2)
 
 async def cmd_list(websocket, args):
@@ -68,6 +82,9 @@ async def cmd_add(websocket, args):
         if password1 != password2:
             await websocket.send_text("❌ Passwords do not match. Aborting.")
             return
+        if len(password1) < 8:
+            await websocket.send_text("⚠️ Password too short (min 8 chars). Aborting.")
+            return
 
         await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")
         while True:
@@ -75,7 +92,7 @@ async def cmd_add(websocket, args):
             if role is None:
                 await websocket.send_text("❌ Role input failed. Aborting.")
                 return
-            role = role.lower() 
+            role = role.lower()
             if role not in VALID_ROLES:
                 await websocket.send_text("⚠️ Invalid role. Choose from: admin, operator, viewer.")
                 await websocket.send_text(">>>PROMPT:Enter role (admin/operator/viewer): ")
@@ -88,9 +105,10 @@ async def cmd_add(websocket, args):
             "username": username,
             "role": role
         }
-
         save_users(users)
-        password_hash = hashlib.sha256(password1.encode()).hexdigest()
+
+        # Store Argon2id hash (salt is embedded in the encoded string)
+        password_hash = PH.hash(password1)
         passwords[str(new_userid)] = password_hash
         save_passwords(passwords)
 
@@ -160,8 +178,11 @@ async def cmd_edit(websocket, args):
         if new_pw1 != new_pw2:
             await websocket.send_text("❌ Passwords do not match. Aborting.")
             return
+        if len(new_pw1) < 8:
+            await websocket.send_text("⚠️ Password too short (min 8 chars). Aborting.")
+            return
 
-        password_hash = hashlib.sha256(new_pw1.encode()).hexdigest()
+        password_hash = PH.hash(new_pw1)
         passwords[userid] = password_hash
         save_passwords(passwords)
         await websocket.send_text(f"🔑 Password for user '{username}' updated.")
@@ -221,16 +242,12 @@ async def handle_userctl(websocket, full_command: str):
     await handler(websocket, args)
 
 
-
 async def autocomplete(tokens):
     subcommands = ["add", "edit", "del", "list"]
-    
     if not tokens or len(tokens) == 1:
         return [s for s in subcommands if s.startswith(tokens[0] if tokens else "")]
-
     sub = tokens[0]
     if sub in ("edit", "del") and len(tokens) == 2:
         users = load_users()
         return [u for u in users if u.startswith(tokens[1])]
-    
     return []

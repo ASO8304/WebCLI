@@ -1,47 +1,22 @@
 {
   "root": {
-    "userid": 0,
     "username": "root",
+    "userid": 1,
     "role": "root"
   },
-  "ali": {
-    "userid": 1,
-    "username": "ali",
-    "role": "admin"
-  },
-  "reza": {
-    "userid": 2,
-    "username": "reza",
-    "role": "operator"
-  },
-  "mina": {
-    "userid": 3,
-    "username": "mina",
-    "role": "viewer"
-  },
-  "abbas": {
-    "userid": 4,
-    "username": "abbas",
-    "role": "admin"
-  },
-  "abcd": {
-    "userid": 6,
-    "username": "abcd",
-    "role": "admin"
-  },
-  "viewer": {
-    "userid": 7,
-    "username": "viewer",
-    "role": "viewer"
-  },
   "admin": {
-    "userid": 8,
+    "userid": 2,
     "username": "admin",
     "role": "admin"
   },
-  "dad": {
-    "userid": 9,
-    "username": "dad",
+  "operator": {
+    "userid": 3,
+    "username": "operator",
     "role": "operator"
+  },
+  "viewer": {
+    "userid": 4,
+    "username": "viewer",
+    "role": "viewer"
   }
 }

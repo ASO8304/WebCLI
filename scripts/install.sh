@@ -55,7 +55,7 @@ sudo -u "$USERNAME" "$PYTHON_BIN" -m venv "$VENV_DIR"
 
 echo "Installing Python dependencies ..."
 sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install --upgrade pip
-sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install fastapi "uvicorn[standard] configupdater"
+sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install -r requirements.txt
 
 # Deploy backend and config
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,6 +67,7 @@ if [ -d "$SCRIPT_DIR/../config" ]; then
   echo "Deploying config files ..."
   cp -rv "$SCRIPT_DIR/../config/"* "$CONF_DIR/"
   chown -R "$USERNAME:$USERNAME" "$CONF_DIR"
+  chmod 600  "$CONF_DIR""/*.json"
 else
   echo "Warning: No 'config/' directory found."
 fi

@@ -2,7 +2,7 @@ import asyncio
 import shutil
 from core.process_manager import set_current_process, clear_current_process, get_current_process
 
-TCPDUMP_PATH = shutil.which("tcpdump")
+TCPDUMP_PATH = "/usr/sbin/tcpdump" 
 
 # Whitelisted options and filters
 ALLOWED_FLAGS = {

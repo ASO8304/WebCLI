@@ -10,7 +10,7 @@ console.log(
 const terminal = document.getElementById("terminal");
 
 // Manual connection (bypass nginx)
-// const socket = new WebSocket("ws://192.168.56.105:12000/ws");
+// const socket = new WebSocket("ws://192.168.56,105:12000/ws");
 
 // Default: through nginx reverse-proxy
 const loc        = window.location;
