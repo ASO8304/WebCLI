@@ -1,4 +1,4 @@
-/* ─────────── Terminal + WebSocket Frontend ─────────── */
+/* ------------- Terminal + WebSocket Frontend ----------- */
 /* eslint-disable no-console                            */
 
 console.log(

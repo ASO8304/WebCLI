@@ -1,4 +1,5 @@
 import asyncio
+from core import config_manager
 from core.iptables_runner import handle_iptables
 from core.command_control import cmd_config
 from core.tcpdump_runner import handle_tcpdump
@@ -6,6 +7,7 @@ from core.userctl_runner import handle_userctl
 from core.autocomplete_handler import autocomplete_handler
 from core.process_manager import interrupt_current_process
 from core.systemctl_runner import handle_systemctl
+
 
 
 async def admin_handler(websocket, username):
@@ -72,9 +74,7 @@ async def admin_handler(websocket, username):
 
         # Config    
         elif cmd == "config":
-            should_return = await cmd_config(websocket, prompt)
-            if not should_return:
-                return False
+            await config_manager.show(websocket, prompt)
             await websocket.send_text("🔙 Returned from config mode.")
 
         # Tcpdump

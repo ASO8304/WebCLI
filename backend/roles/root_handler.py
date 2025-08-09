@@ -72,9 +72,7 @@ async def root_handler(websocket, username):
 
         # Config    
         elif cmd == "config":
-            should_return = await cmd_config(websocket, prompt)
-            if not should_return:
-                return False
+            await config_manager.show(websocket, prompt)
             await websocket.send_text("🔙 Returned from config mode.")
 
         # Userctl
