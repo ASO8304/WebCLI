@@ -71,9 +71,9 @@ async def cmd_add(websocket, args):
             else:
                 break
 
-        await websocket.send_text(">>>PROMPT:Enter password: ")
+        await websocket.send_text(">>>PROMPT:[PASSWORD]Enter password: ")
         password1 = await websocket.receive_text()
-        await websocket.send_text(">>>PROMPT:Re-enter password: ")
+        await websocket.send_text(">>>PROMPT:[PASSWORD]Re-enter password: ")
         password2 = await websocket.receive_text()
 
         if None in (password1, password2):
@@ -166,7 +166,8 @@ async def cmd_edit(websocket, args):
     userid = str(user["userid"])
     role = user["role"]
     await websocket.send_text(f"📝 Editing user '{username}' (Role: {role})")
-    await websocket.send_text(">>>PROMPT:What do you want to edit?\n1. Password\n2. Role\n3. Cancel\n>>>PROMPT:Enter choice [1/2/3]: ")
+    await websocket.send_text("What do you want to edit?\n1. Password\n2. Role\n3. Cancel\n")
+    await websocket.send_text(">>>PROMPT:Enter choice [1/2/3]: ")
 
     choice = await websocket.receive_text()
     if choice == "1":

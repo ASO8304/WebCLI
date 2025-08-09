@@ -85,7 +85,7 @@ User=$USERNAME
 Group=$USERNAME
 WorkingDirectory=$APP_DIR
 Environment=PYTHONPATH=$APP_DIR
-ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 0.0.0.0 --port $PORT
+ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 127.0.0.1 --port $PORT
 
 # --- Capabilities ----------------------------------
 # Needed by:
