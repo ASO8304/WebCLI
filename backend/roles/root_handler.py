@@ -1,4 +1,5 @@
 import asyncio
+from core import config_manager
 from core.iptables_runner import handle_iptables
 from core.command_control import cmd_config
 from core.tcpdump_runner import handle_tcpdump
@@ -60,18 +61,18 @@ async def root_handler(websocket, username):
             continue
 
         # Signout
-        if cmd == "signout":
+        if cmd.startswith("signout ") or cmd == "signout":
             await websocket.send_text("🚪 Signing out...")
             return True
 
         # Help
-        elif cmd == "help":
+        elif cmd.startswith("help ") or cmd == "help":
             await websocket.send_text(
                 "🛠 Available commands: help, signout, config, userctl <subcommand>, tcpdump, systemctl, iptables"
             )
 
         # Config    
-        elif cmd == "config":
+        elif cmd.startswith("config ") or cmd == "config":
             await config_manager.show(websocket, prompt)
             await websocket.send_text("🔙 Returned from config mode.")
 
