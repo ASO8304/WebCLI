@@ -4,7 +4,6 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from roles.root_handler import root_handler
 from roles.admin_handler import admin_handler
 from roles.operator_handler import operator_handler
 from roles.viewer_handler import viewer_handler
@@ -19,6 +18,7 @@ from argon2 import PasswordHasher, exceptions as argon2_exceptions
 ALLOWED_ORIGINS = {
     "http://localhost:8080",
     "http://127.0.0.1:8080",
+    "http://192.168.56.105:8080",
 }
 
 
@@ -75,7 +75,6 @@ def get_processor(role: str):
         "admin": admin_handler,
         "operator": operator_handler,
         "viewer": viewer_handler,
-        "root": root_handler
     }.get(role)
 
 
