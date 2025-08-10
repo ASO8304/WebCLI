@@ -43,12 +43,10 @@
 ├── roles/
 │   ├── admin_role.py
 │   ├── operator_role.py
-│   ├── root_role.py
 │   └── viewer_role.py
 ├── webcli_server.py        # FastAPI + WebSocket entrypoint
 ├── config/
 │   ├── pass.json
-│   ├── setting.INI
 │   └── users.json
 └── scripts/
     ├── install.sh
@@ -159,9 +157,11 @@ let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre
   <p>
     Example for a file named <code>settings.test</code>:
   </p>
-  <pre><code># backend/core/validators_files/settings_test.py
+  <pre><code>
+  
+# backend/core/validators_files/settings_test.py
 
-# [CatSleep] Sleep ∈ {yes, trying, no}
+## [CatSleep] Sleep in {yes, trying, no}
 def help_CatSleep_Sleep():
     return "Cat sleep state. Allowed values: yes, trying, no."
 
@@ -170,22 +170,16 @@ def validate_CatSleep_Sleep(value: str):
     v = str(value).strip().lower()
     return v in allowed
 
-# [clockSleep] Sleep ∈ {0, 2, 43}
-def help_clockSleep_Sleep():
-    return "Clock sleep mode. Allowed numeric codes: 0, 2, 43."
+## [ClockSleep] Sleep in {0, 2, 4}
+def help_ClockSleep_Sleep():
+    return "Clock sleep mode. Allowed numeric codes: 0, 2, 4."
 
-def validate_clockSleep_Sleep(value: str):
-    allowed = {"0", "2", "43"}
+def validate_ClockSleep_Sleep(value: str):
+    allowed = {"0", "2", "4"}
     v = str(value).strip()
     return v in allowed
 
-# Another example: a 7-bit binary (only 0/1, exactly 7 chars)
-def help_SomeSection_binary_key():
-    return "7-bit binary value (only '0' and '1'). Example: 1000100"
 
-def validate_SomeSection_binary_key(value: str):
-    import re
-    return bool(re.fullmatch(r"[01]{7}", str(value)))
 </code></pre>
 
   <h4>2) Register the file in the central router</h4>
@@ -194,15 +188,10 @@ def validate_SomeSection_binary_key(value: str):
   </p>
   <pre><code># backend/core/validators.py
 FILE_MODULES = {
-    "settings.test": "core.validators_files.settings_test",
+    "settings.ini": "core.validators_files.settings_ini",
     # Add more files here:
     # "example.ini": "core.validators_files.example_ini",
 }</code></pre>
-  <p>
-    Make sure the package initializer exists (once, globally):
-  </p>
-  <pre><code># backend/core/validators_files/__init__.py
-# (empty file)</code></pre>
 
   <h4>3) Ensure the editor knows about your file</h4>
   <p>
@@ -210,7 +199,7 @@ FILE_MODULES = {
   </p>
   <pre><code># backend/core/config_manager.py
 CONFIG_MAP = {
-    "settings.test": "edit_ini_format",
+    "settings.ini": "edit_ini_format",
     "example.ini": "edit_ini_format",   # if another INI
     # "custom_config.json": "edit_custom_json",
 }</code></pre>
@@ -245,7 +234,7 @@ CONFIG_MAP = {
       <pre>
 (admin)$ config
 📄 Available config files:
-1. settings.test
+1. settings.ini
 2. yourfile.ini
 ...
       </pre>
