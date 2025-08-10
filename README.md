@@ -122,7 +122,7 @@ let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre
       Interact with the Web CLI:
       <pre>
 (root)$ config
-(root)$ tcpdump -i eth0
+(root)$ tcpdump -i enp0s3
 (root)$ userctl list</pre>
     </li>
   </ol>
