@@ -1,8 +1,13 @@
 import asyncio
-import shutil
+import os
 from core.process_manager import set_current_process, clear_current_process, get_current_process
 
-TCPDUMP_PATH = "/usr/sbin/tcpdump" 
+# Default to /usr/sbin first
+if os.path.isfile("/usr/sbin/tcpdump") and os.access("/usr/sbin/tcpdump", os.X_OK):
+    TCPDUMP_PATH = "/usr/sbin/tcpdump"
+elif os.path.isfile("/usr/bin/tcpdump") and os.access("/usr/bin/tcpdump", os.X_OK):
+    TCPDUMP_PATH = "/usr/bin/tcpdump"
+
 
 # Whitelisted options and filters
 ALLOWED_FLAGS = {
