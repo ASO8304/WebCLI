@@ -191,6 +191,7 @@ let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre
     Example for a file named <code>settings.test</code>:
   </p>
   <pre><code>
+
 # backend/core/validators_files/settings_test.py
 
 ## [CatSleep] Sleep in {yes, trying, no}
