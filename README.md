@@ -156,7 +156,13 @@ let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre
 
   <li><strong>Additional hardening</strong>
     <ul>
-      <li>systemd sandboxing (<code>NoNewPrivileges</code>, <code>PrivateTmp</code>, <code>ProtectSystem</code>, capability bounding, etc.).</li>
+     <li><strong>systemd sandboxing</strong>
+        <ul>
+          <li>Capability bounding and ambient caps (NET_RAW, NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID, AUDIT_WRITE).</li>
+          <li>PrivateTmp, PrivateDevices, ProtectHome=yes.</li>
+          <li>Kernel hardening: InaccessiblePaths=/root, LockPersonality=true.</li>
+        </ul>
+      </li>
       <li>Server-side argument whitelisting and no shell invocation.</li>
     </ul>
   </li>
