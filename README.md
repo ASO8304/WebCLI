@@ -128,12 +128,39 @@ let socket = new WebSocket(`${wsProtocol}://${loc.host}/webcli/ws`);</code></pre
   </ol>
 
   <h2>🛡️ Security Notes</h2>
-  <ul>
-    <li>Only safe capabilities are granted via <code>CapabilityBoundingSet</code>.</li>
-    <li>systemd enforces sandboxing with <code>PrivateTmp</code>, <code>ProtectSystem</code>, etc.</li>
-    <li>TCP commands are validated and filtered server-side.</li>
-    <li><code>/var/log/webcli</code> is isolated from users.</li>
-  </ul>
+<ul>
+  <li><strong>Strong password hashing</strong>
+    <ul>
+      <li>Passwords are hashed with <code>Argon2id</code> using a per-user salt and secure parameters.</li>
+    </ul>
+  </li>
+
+  <li><strong>Strict CORS & WebSocket Origin checks</strong>
+    <ul>
+      <li>Only explicitly allowed origins are accepted.</li>
+      <li>The <code>Origin</code> header is verified during the WebSocket handshake to prevent Cross-Site WebSocket Hijacking (CSWSH).</li>
+    </ul>
+  </li>
+
+  <li><strong>Locked-down credentials & config</strong>
+    <ul>
+      <li><code>/etc/webcli/pass.json</code> and <code>/etc/webcli/users.json</code> are owned by the service user and set to <code>0600</code> or stricter.</li>
+    </ul>
+  </li>
+
+  <li><strong>Deterministic binary paths</strong>
+    <ul>
+      <li>Network tools use absolute paths (prefer <code>/usr/sbin/tcpdump</code>, fallback <code>/usr/bin/tcpdump</code>); the process does not trust <code>PATH</code>.</li>
+    </ul>
+  </li>
+
+  <li><strong>Additional hardening</strong>
+    <ul>
+      <li>systemd sandboxing (<code>NoNewPrivileges</code>, <code>PrivateTmp</code>, <code>ProtectSystem</code>, capability bounding, etc.).</li>
+      <li>Server-side argument whitelisting and no shell invocation.</li>
+    </ul>
+  </li>
+</ul>
 
   <h2>🔄 Customization</h2>
 
