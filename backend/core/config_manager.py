@@ -1,8 +1,7 @@
 from configupdater import ConfigUpdater
 import os
-import fnmatch
-import re
-from core.validators import *  
+
+from core.validators import validate_param, help_for
 
 # Directory where config files are stored
 CONFIG_DIR = "/etc/webcli"
@@ -13,16 +12,6 @@ CONFIG_MAP = {
     "example.ini": "edit_example_ini",           # Placeholder
     "custom_config.json": "edit_custom_json",    # Placeholder
 }
-
-
-# Look up validator for a given key using fnmatch
-def get_validator(key):
-    for param, validator in PARAM_VALIDATORS.items():
-        if fnmatch.fnmatch(key, param):
-            return validator
-    return None
-
-
 
 # =======================
 # Config Menu Dispatcher
@@ -66,7 +55,8 @@ async def show(websocket, prompt):
 
             if handler_name in globals():
                 handler_func = globals()[handler_name]
-                await handler_func(websocket, prompt, full_path)
+                # pass selected_file so validators know which module to use
+                await handler_func(websocket, prompt, full_path, selected_file)
             else:
                 await websocket.send_text(f"⚠️ No handler defined for: {selected_file}")
             return
@@ -74,14 +64,15 @@ async def show(websocket, prompt):
             await websocket.send_text(f"❌ Error selecting config file: {e}")
             return
 
-
-
 # ========================
-# settings.test Editor (INI-style)
+# Generic INI Editor
 # ========================
 
-
-async def edit_ini_format(websocket, prompt, config_path):
+async def edit_ini_format(websocket, prompt, config_path, file_name):
+    """
+    INI editor driven by per-file validators (core/validators_files/<file>.py).
+    Shows a short guide as soon as the user types 'edit <n>'.
+    """
     if not os.path.exists(config_path):
         await websocket.send_text(f"❌ Config file not found: {config_path}")
         return
@@ -125,7 +116,9 @@ async def edit_ini_format(websocket, prompt, config_path):
         await websocket.send_text(f"{i}. {key} = {option.value}")
 
     while True:
-        await websocket.send_text(f">>>PROMPT:Type 'edit <number>' to change a value or 'back' to return: ")
+        await websocket.send_text(
+            ">>>PROMPT:Type 'edit <number>' to change a value or 'back' to return: "
+        )
         user_input = await websocket.receive_text()
         stripped = user_input.strip().lower()
 
@@ -133,48 +126,59 @@ async def edit_ini_format(websocket, prompt, config_path):
             await websocket.send_text("↩️ Returning to config menu.")
             return
 
-        elif stripped.startswith("edit "):
-            parts = stripped.split()
-            if len(parts) != 2 or not parts[1].isdigit():
-                await websocket.send_text("❗ Usage: edit <number>")
-                continue
+        if not stripped.startswith("edit "):
+            await websocket.send_text("❗ Usage: edit <number>  |  back")
+            continue
 
-            key_index = int(parts[1])
-            if not (1 <= key_index <= len(options)):
-                await websocket.send_text("❗ Invalid key number.")
-                continue
+        parts = stripped.split()
+        if len(parts) != 2 or not parts[1].isdigit():
+            await websocket.send_text("❗ Usage: edit <number>")
+            continue
 
-            selected_key, selected_option = options[key_index - 1]
-            await websocket.send_text(f"🔧 Editing {selected_key} (current = {selected_option.value})")
-            await websocket.send_text(f">>>PROMPT:Enter new value for {selected_key}: ")
+        key_index = int(parts[1])
+        if not (1 <= key_index <= len(options)):
+            await websocket.send_text("❗ Invalid key number.")
+            continue
 
-            new_value = await websocket.receive_text()
+        selected_key, selected_option = options[key_index - 1]
 
-            validator = get_validator(selected_key)
-            if validator and not validator(new_value):
-                await websocket.send_text(f"Invalid value for {selected_key}. Please try again.")
-                continue
+        # 🔹 Show short guide BEFORE prompting for a new value
+        guide = help_for(file_name, selected_section_name, selected_key)
+        if guide:
+            await websocket.send_text(f"ℹ️ {guide}")
+        else:
+            await websocket.send_text(f"ℹ️ No help available for [{selected_section_name}].{selected_key}.")
 
-            selected_option.value = new_value
+        await websocket.send_text(f"🔧 Editing {selected_key} (current = {selected_option.value})")
+        await websocket.send_text(f">>>PROMPT:Enter new value for {selected_key}: ")
 
-            try:
-                with open(config_path, "w", encoding="utf-8") as f:
-                    updater.write(f)
-                await websocket.send_text(f"✅ Updated: {selected_key} = {new_value}")
-            except Exception as e:
-                await websocket.send_text(f"❌ Failed to write config: {e}")
-            return
+        new_value = await websocket.receive_text()
 
+        ok, err = validate_param(file_name, selected_section_name, selected_key, new_value)
+        if not ok:
+            await websocket.send_text(f"❌ {err}")
+            # Loop again to let the user retry or choose another key
+            continue
 
+        selected_option.value = new_value
+
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                updater.write(f)
+            await websocket.send_text(f"✅ Updated: {selected_key} = {new_value}")
+        except Exception as e:
+            await websocket.send_text(f"❌ Failed to write config: {e}")
+        # After one successful edit, return to config menu
+        return
 
 # =======================
 # Future Placeholder Handlers
 # =======================
 
-async def edit_example_ini(websocket, prompt, config_path):
+async def edit_example_ini(websocket, prompt, config_path, file_name):
     await websocket.send_text(f"🧪 INI editor not implemented for {config_path}")
     return
 
-async def edit_custom_json(websocket, prompt, config_path):
+async def edit_custom_json(websocket, prompt, config_path, file_name):
     await websocket.send_text(f"📦 JSON editor not implemented for {config_path}")
     return
