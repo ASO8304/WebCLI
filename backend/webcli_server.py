@@ -2,7 +2,12 @@ import os
 import json
 import asyncio
 import time
+import random
+import math
+from collections import deque
 from pathlib import Path
+from typing import Optional, Deque, Dict, Tuple
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,55 +34,50 @@ ALLOWED_ORIGINS = {
 }
 
 
-def origin_allowed(origin: str | None) -> bool:
-    # Browsers sometimes send "null" for file:// pages (dev only). Here we only
-    # allow origins in ALLOWED_ORIGINS. Tighten this list for production.
+def origin_allowed(origin: Optional[str]) -> bool:
+    # Browsers often send "null" for file:// pages; we include it for dev only.
     return origin in ALLOWED_ORIGINS
 
 
 app = FastAPI()
 prefix = ">>>PROMPT:"
 
-# CORS controls HTTP requests (not WS), but keep it locked down anyway.
+# CORS affects HTTP endpoints (not WS), but keep it tight anyway
 CORS_ALLOW = [o for o in ALLOWED_ORIGINS if o != "null"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ALLOW,
+    allow_origins=CORS_ALLOW,       # lock down in production
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
 # ============================================================
-# Session / idle-timeout configuration (INACTIVITY TIMEOUT)
+# Session / idle-timeout config
 # ============================================================
-# These environment variables control when an authenticated WebSocket
-# session is considered "idle" and should be terminated to force re-auth.
-#
-# How it works at a high level:
-# - We wrap the FastAPI WebSocket in ActivityWebSocket which updates a
-#   "last_client_activity" timestamp on every *receive* (i.e., user input).
-# - A background _idle_watcher() task checks that timestamp every few seconds.
-# - If no input arrives for IDLE_TIMEOUT_SECONDS, we notify and close the WS.
-# - If a long-running command is active (e.g., tcpdump), the watcher *pauses*
-#   the countdown by "touching" the last activity. This prevents mid-stream
-#   disconnects while legitimate work is ongoing.
-#
-# Note: We use time.monotonic() for robust elapsed-time calculations that are
-# not affected by system clock changes.
-#
-# Default idle timeout: 15 minutes (900 seconds). Override in the environment:
-#   WEBCLI_IDLE_TIMEOUT=600  # 10 minutes, for example
+# Default: 15 minutes. Change with env var WEBCLI_IDLE_TIMEOUT (seconds).
 IDLE_TIMEOUT_SECONDS = int(os.getenv("WEBCLI_IDLE_TIMEOUT", "900"))
-
-# Optional pre-warning window before disconnect (in seconds). If > 0, the user
-# gets a single warning message when remaining time <= IDLE_WARN_SECONDS.
-# Set to 0 to disable warnings entirely.
+# Optional warning before disconnect (seconds). Set 0 to disable pre-warning.
 IDLE_WARN_SECONDS = int(os.getenv("WEBCLI_IDLE_WARN", "60"))
-
-# How often the watcher wakes up to check for inactivity (in seconds).
-# Lower = more responsive but slightly more overhead.
+# How often the watcher checks (seconds)
 IDLE_POLL_INTERVAL = float(os.getenv("WEBCLI_IDLE_POLL", "5"))
+
+# ============================================================
+# Login throttling & lockout configuration
+# ============================================================
+# Sliding window size for counting failures (seconds)
+AUTH_WINDOW = int(os.getenv("WEBCLI_AUTH_WINDOW", "300"))  # 5 minutes
+# Thresholds before a temporary lockout triggers
+AUTH_MAX_FAILS_PER_IP = int(os.getenv("WEBCLI_AUTH_MAX_FAILS_PER_IP", "20"))
+AUTH_MAX_FAILS_PER_USER = int(os.getenv("WEBCLI_AUTH_MAX_FAILS_PER_USER", "10"))
+# Lockout base duration and maximum cap (seconds); lockout escalates exponentially
+AUTH_LOCKOUT_BASE = int(os.getenv("WEBCLI_AUTH_LOCKOUT_BASE", "30"))    # 30s
+AUTH_LOCKOUT_MAX = int(os.getenv("WEBCLI_AUTH_LOCKOUT_MAX", "3600"))    # 1h
+# Exponential backoff base per *failed attempt* (seconds) and max cap
+AUTH_BACKOFF_BASE = float(os.getenv("WEBCLI_AUTH_BACKOFF_BASE", "1.0"))  # 1s
+AUTH_BACKOFF_MAX = float(os.getenv("WEBCLI_AUTH_BACKOFF_MAX", "5.0"))    # 5s
+# Add small random jitter to avoid lockstep guessing
+AUTH_BACKOFF_JITTER = float(os.getenv("WEBCLI_AUTH_BACKOFF_JITTER", "0.25"))  # 25% jitter
 
 # -----------------------------
 # Argon2id parameters (tune for your server)
@@ -96,13 +96,12 @@ PH = PasswordHasher(
     salt_len=32,         # Random salt length (>=16 recommended).
 )
 
-# Paths to user/credential stores. Adjust if you deploy elsewhere.
+
 USERS_PATH = Path("/etc/webcli/users.json")
 PASS_PATH = Path("/etc/webcli/pass.json")
 
 
 def get_processor(role: str):
-    # Map role → role handler (must be awaitable and follow your handler contract).
     return {
         "admin": admin_handler,
         "operator": operator_handler,
@@ -113,7 +112,7 @@ def get_processor(role: str):
 def verify_password(argon2_hash: str, password: str) -> bool:
     """
     Verify password against Argon2id hash.
-    Only Argon2* hashes are accepted; malformed or unknown formats fail closed.
+    Only Argon2id is supported; legacy formats are rejected.
     """
     if not isinstance(argon2_hash, str) or not argon2_hash.startswith("$argon2"):
         return False
@@ -123,35 +122,25 @@ def verify_password(argon2_hash: str, password: str) -> bool:
     except argon2_exceptions.VerifyMismatchError:
         return False
     except Exception:
-        # Any malformed hash or unexpected error -> fail closed.
+        # Any malformed hash or unexpected error -> fail closed
         return False
 
 
 # ============================================================
-# ActivityWebSocket: tracks client activity for idle timeout
+# Helper: track client activity for idle timeout
 # ============================================================
 class ActivityWebSocket:
     """
     Thin proxy around FastAPI's WebSocket that tracks *client* activity.
-
-    Key idea:
-    - We only refresh the idle timer on receive_* calls (i.e., when the *user*
-      actually does something). Server-to-client sends do not count as activity.
-    - The separate _idle_watcher() task reads last_client_activity to decide
-      whether to warn or disconnect the session.
-    - When a long-running command is detected, the watcher itself "touches"
-      this timestamp so the session doesn't time out mid-command.
+    We only refresh the timer on receive_* calls (i.e., when the user interacts).
+    The idle watcher separately pauses timeout while a command is running.
     """
     def __init__(self, ws: WebSocket):
         self._ws = ws
-        # Start the clock now. This avoids immediate timeout if the user logs in
-        # and pauses before sending the first command.
         self.last_client_activity = time.monotonic()
 
-    # --- Delegate common receive methods and update activity timestamp ---
-
+    # ---- delegate commonly used methods, updating activity on receive ----
     async def receive_text(self) -> str:
-        # Any inbound text from the client = real user activity.
         msg = await self._ws.receive_text()
         self.last_client_activity = time.monotonic()
         return msg
@@ -161,63 +150,202 @@ class ActivityWebSocket:
         self.last_client_activity = time.monotonic()
         return obj
 
-    # --- Sends do not reset the timer (server output is not user activity) ---
-
     async def send_text(self, data: str):
         return await self._ws.send_text(data)
 
     async def send_json(self, data):
         return await self._ws.send_json(data)
 
-    async def close(self, code: int = 1000, reason: str | None = None):
+    async def close(self, code: int = 1000, reason: Optional[str] = None):
         return await self._ws.close(code=code, reason=reason)
 
+    # Expose headers, etc.
     @property
     def headers(self):
         return self._ws.headers
 
-    # Fallback to any other WebSocket attribute (e.g., .accept()).
+    # Fallback for anything else (e.g., .accept())
     def __getattr__(self, name):
         return getattr(self._ws, name)
 
 
 # ============================================================
-# _idle_watcher: background task that enforces inactivity timeout
+# NEW: login rate limiter with backoff/lockout
+# ============================================================
+class _KeyState:
+    """Internal state for a single key (IP or username)."""
+    __slots__ = ("fail_times", "lock_until", "lockouts")
+
+    def __init__(self):
+        self.fail_times: Deque[float] = deque()
+        self.lock_until: float = 0.0
+        self.lockouts: int = 0  # how many times this key has hit a lockout
+
+
+class RateLimiter:
+    """
+    Sliding-window failure counter + exponential lockout scheduler
+    used for both per-IP and per-username throttling.
+    """
+
+    def __init__(self, window_s: int, max_fails: int, lock_base_s: int, lock_max_s: int):
+        self.window_s = window_s
+        self.max_fails = max_fails
+        self.lock_base_s = lock_base_s
+        self.lock_max_s = lock_max_s
+        self._states: Dict[str, _KeyState] = {}
+        self._lock = asyncio.Lock()
+
+    def _now(self) -> float:
+        return time.monotonic()
+
+    def _purge_old(self, st: _KeyState, now: float):
+        cutoff = now - self.window_s
+        while st.fail_times and st.fail_times[0] < cutoff:
+            st.fail_times.popleft()
+
+    async def check_blocked(self, key: str) -> float:
+        """
+        Returns seconds remaining if blocked, else 0.0
+        """
+        now = self._now()
+        async with self._lock:
+            st = self._states.get(key)
+            if not st:
+                return 0.0
+            if st.lock_until > now:
+                return st.lock_until - now
+            return 0.0
+
+    async def register_success(self, key: str):
+        """Reset counters on successful auth."""
+        async with self._lock:
+            if key in self._states:
+                self._states.pop(key, None)
+
+    async def register_failure(self, key: str) -> Tuple[float, float]:
+        """
+        Register a failed attempt.
+        Returns (backoff_delay_seconds, lock_remaining_seconds)
+        lock_remaining_seconds is >0 only if a new (or existing) lockout applies.
+        """
+        now = self._now()
+        async with self._lock:
+            st = self._states.setdefault(key, _KeyState())
+
+            # If currently locked, keep it
+            if st.lock_until > now:
+                return 0.0, st.lock_until - now
+
+            # Add failure and purge outside window
+            st.fail_times.append(now)
+            self._purge_old(st, now)
+
+            # Compute exponential backoff based on current failures in window
+            n = len(st.fail_times)  # failures in the current window
+            backoff = min(AUTH_BACKOFF_BASE * (2 ** max(0, n - 1)), AUTH_BACKOFF_MAX)
+            # Add jitter: +/- AUTH_BACKOFF_JITTER * backoff
+            jitter = (random.random() * 2 - 1) * AUTH_BACKOFF_JITTER * backoff
+            backoff = max(0.0, backoff + jitter)
+
+            # Trigger a lockout if threshold reached
+            if n >= self.max_fails:
+                # Escalate lockout duration exponentially per prior lockout count
+                duration = min(self.lock_base_s * (2 ** st.lockouts), self.lock_max_s)
+                st.lockouts += 1
+                st.lock_until = now + duration
+                st.fail_times.clear()  # reset the counter after a lock
+                return backoff, duration
+
+            return backoff, 0.0
+
+
+# Instantiate two limiters: per-IP and per-username
+_ip_limiter = RateLimiter(AUTH_WINDOW, AUTH_MAX_FAILS_PER_IP, AUTH_LOCKOUT_BASE, AUTH_LOCKOUT_MAX)
+_user_limiter = RateLimiter(AUTH_WINDOW, AUTH_MAX_FAILS_PER_USER, AUTH_LOCKOUT_BASE, AUTH_LOCKOUT_MAX)
+
+
+def _client_ip(ws: WebSocket) -> str:
+    """
+    Best-effort client IP extraction (supports reverse proxies).
+    Note: behind multiple app workers you should back this with Redis.
+    """
+    # Prefer X-Forwarded-For if present
+    h = ws.headers
+    xff = (h.get("x-forwarded-for") or h.get("X-Forwarded-For") or "").strip()
+    if xff:
+        # If multiple, take the left-most (original client)
+        return xff.split(",")[0].strip()
+    # Fallback to the socket peer IP
+    try:
+        return ws.client.host if ws.client else "unknown"
+    except Exception:
+        return "unknown"
+
+
+# ============================================================
+# Wait-time formatter (NEW helper for user-friendly messages)
+# ============================================================
+def _format_wait(seconds: float) -> Tuple[str, str]:
+    """
+    Format a positive wait time into a human-readable duration and a local
+    clock time string like '17:39:23' indicating when to try again.
+
+    Returns:
+        (duration_str, target_time_str)
+        e.g., ("5 minutes", "17:39:23") or ("42 seconds", "12:01:07")
+    """
+    s = max(0, int(math.ceil(seconds)))
+    now = datetime.now()
+    target = now + timedelta(seconds=s)
+
+    # Build a compact duration string
+    hours, rem = divmod(s, 3600)
+    minutes, secs = divmod(rem, 60)
+
+    parts = []
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    if secs and not hours and minutes < 5:
+        # Include seconds for short waits; omit when we already show hours.
+        parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+
+    if not parts:
+        parts.append("0 seconds")
+
+    duration_str = " ".join(parts)
+    target_str = target.strftime("%H:%M:%S")
+    return duration_str, target_str
+
+
+# ============================================================
+# Idle watcher (existing)
 # ============================================================
 async def _idle_watcher(aws: ActivityWebSocket):
     """
-    Disconnects the session when there has been no *client* activity for
-    IDLE_TIMEOUT_SECONDS. The countdown is paused while a long-running command
-    is active (see core.process_manager.get_current_process).
-
-    Lifecycle:
-      - Runs as an asyncio Task started after successful login.
-      - Checks every IDLE_POLL_INTERVAL seconds.
-      - Optionally warns the user once (IDLE_WARN_SECONDS before timeout).
-      - On timeout, sends a message and closes the WS with code 4000, forcing
-        a fresh login on the next connection.
-
-    Close codes used:
-      - 4000: application-defined (allowed range 4000–4999).
-      - 1008 (used elsewhere): policy violation (for origin block).
+    Background task: disconnect if there's no client activity for IDLE_TIMEOUT_SECONDS.
+    Pauses the countdown while a long-running command (tracked in core.process_manager)
+    is active for this websocket.
     """
     warned = False
     try:
         while True:
             await asyncio.sleep(IDLE_POLL_INTERVAL)
 
-            # If a long-running process is active for this connection,
-            # treat that as "activity": reset the timer to avoid mid-command drop.
+            # If a long-running process is active, treat as activity (pause timer)
             proc = get_current_process(aws)
             if proc and proc.returncode is None:
+                # "Touch" the last activity so the session doesn't time out mid-command
                 aws.last_client_activity = time.monotonic()
-                warned = False  # Cancel any previous warning once activity resumes
+                warned = False
                 continue
 
             elapsed = time.monotonic() - aws.last_client_activity
             remaining = IDLE_TIMEOUT_SECONDS - elapsed
 
-            # One-time pre-warning (if enabled) when we're inside the warning window.
+            # Send one-time warning if enabled
             if IDLE_WARN_SECONDS > 0 and not warned and remaining <= IDLE_WARN_SECONDS and remaining > 0:
                 try:
                     mins = max(1, int(round(remaining / 60)))
@@ -225,56 +353,87 @@ async def _idle_watcher(aws: ActivityWebSocket):
                         f"⚠️ Inactive for a while. You will be logged out in ~{mins} minute(s) unless you press a key."
                     )
                 except Exception:
-                    # Ignore send errors; the socket may already be closing.
+                    # Ignore send error; likely closing anyway
                     pass
                 warned = True
 
-            # Hard disconnect at (or beyond) the timeout threshold.
+            # Hard disconnect when timed out
             if elapsed >= IDLE_TIMEOUT_SECONDS:
                 try:
                     await aws.send_text("⏳ Session timed out due to inactivity. Please sign in again.")
                 except Exception:
                     pass
                 try:
-                    # 4000–4999 are app-specific close codes; using 4000 here.
                     await aws.close(code=4000, reason="Idle timeout")
                 finally:
                     break
     except asyncio.CancelledError:
-        # Normal cancellation (e.g., user logged out or connection closed)
+        # Normal cancellation path when the session ends for other reasons
         raise
 
 
 # ============================================================
-# WebSocket endpoint: login loop + session handoff + timeout wiring
+# WebSocket endpoint with login throttling + idle timeout
 # ============================================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    # Enforce Origin allowlist BEFORE accepting the handshake.
-    # If not allowed, close with 1008 (policy violation).
+    # Enforce Origin allowlist BEFORE accepting the handshake
     origin = websocket.headers.get("origin")
     if not origin_allowed(origin):
+        # 1008 = Policy Violation
         await websocket.close(code=1008)
         return
 
     await websocket.accept()
     try:
         while True:
-            # --- LOGIN PHASE ---
+            # --- LOGIN ---
             await websocket.send_text(f"{prefix}Enter your username: ")
             username = await websocket.receive_text()
+
+            # Check lockouts *before* asking for password (username known now).
+            ip = _client_ip(websocket)
+
+            ip_block = await _ip_limiter.check_blocked(ip)
+            if ip_block > 0:
+                dur, at = _format_wait(ip_block)
+                await websocket.send_text(
+                    f"⛔ Too many login attempts from your IP. Please wait {dur} and try again at {at}."
+                )
+                # Don't even ask for a password; loop back to login
+                continue
+
+            user_block = await _user_limiter.check_blocked(username)
+            if user_block > 0:
+                dur, at = _format_wait(user_block)
+                await websocket.send_text(
+                    f"⛔ Account temporarily locked due to failed attempts. Please wait {dur} and try again at {at}."
+                )
+                continue
 
             await websocket.send_text(f"{prefix}[PASSWORD]Enter your password: ")
             password = await websocket.receive_text()
 
-            # Load user store and password hashes from disk.
+            # Load user info
             with USERS_PATH.open("r", encoding="utf-8") as f:
                 USERS = json.load(f)
             with PASS_PATH.open("r", encoding="utf-8") as f:
                 PASS_HASHES = json.load(f)
 
-            if username not in USERS:
-                await websocket.send_text("❌ User not found.")
+            # Fast path: unknown user -> count against IP only (avoid user enumeration)
+            user_exists = username in USERS
+            if not user_exists:
+                # Register IP failure, apply backoff/lock if needed
+                backoff, lock_s = await _ip_limiter.register_failure(ip)
+                if backoff > 0:
+                    await asyncio.sleep(backoff)
+                if lock_s > 0:
+                    dur, at = _format_wait(lock_s)
+                    await websocket.send_text(
+                        f"❌ Too many failed attempts from your IP. Please wait {dur} and try again at {at}."
+                    )
+                else:
+                    await websocket.send_text("❌ Authentication failed.")
                 continue
 
             user = USERS[username]
@@ -282,12 +441,30 @@ async def websocket_endpoint(websocket: WebSocket):
             role = user["role"]
             stored_hash = PASS_HASHES.get(str(userid))
 
-            if not stored_hash or not verify_password(stored_hash, password):
-                await websocket.send_text("❌ Authentication failed.")
+            # Verify password; on failure count against both IP and username
+            authed = bool(stored_hash) and verify_password(stored_hash, password)
+            if not authed:
+                # Register both failures
+                backoff_ip, lock_ip = await _ip_limiter.register_failure(ip)
+                backoff_user, lock_user = await _user_limiter.register_failure(username)
+
+                # Apply the larger backoff to slow guesses
+                delay = max(backoff_ip, backoff_user)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
+                # Generic failure message + include wait time if a lock was triggered
+                lock_wait = max(lock_ip, lock_user)
+                if lock_wait > 0:
+                    dur, at = _format_wait(lock_wait)
+                    await websocket.send_text(
+                        f"❌ Too many failed attempts. Please wait {dur} and try again at {at}."
+                    )
+                else:
+                    await websocket.send_text("❌ Authentication failed.")
                 continue
 
-            # Opportunistic rehash: if Argon2 parameters were strengthened,
-            # upgrade the stored hash after a successful login.
+            # Optional: Upgrade hash if Argon2 parameters changed
             try:
                 if PH.check_needs_rehash(stored_hash):
                     new_hash = PH.hash(password)
@@ -295,8 +472,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     with PASS_PATH.open("w", encoding="utf-8") as f:
                         json.dump(PASS_HASHES, f, indent=2)
             except Exception:
-                # Non-fatal: continue even if we fail to persist the upgrade.
+                # Non-fatal: login proceeds even if rehash persistence fails
                 pass
+
+            # Success: clear limiter state for this IP and user
+            await _ip_limiter.register_success(ip)
+            await _user_limiter.register_success(username)
 
             await websocket.send_text(f"✅ Welcome {username}! Your role is '{role}'.")
 
@@ -305,22 +486,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text("❌ Unknown role or invalid module.")
                 continue
 
-            # --- START OF AUTHENTICATED SESSION ---
-            # Wrap the WebSocket so we can track client activity.
+            # ---- Wrap the WS to track activity and start idle watcher ----
             aws = ActivityWebSocket(websocket)
-
-            # Start the idle watcher in the background. It runs until:
-            # - the session times out (and closes), or
-            # - the handler returns and we cancel it in the finally-block.
             idle_task = asyncio.create_task(_idle_watcher(aws))
 
             try:
-                # Hand over control to the role-specific handler.
-                # Contract: handler returns True to "logout and return to login",
-                # False (or None) to end the socket entirely.
+                # --- HAND OVER SESSION ---
                 should_logout = await processor(aws, username)
             finally:
-                # Whatever happens, make sure we stop the watcher cleanly.
+                # Ensure watcher is stopped regardless of how the session ends
                 if not idle_task.done():
                     idle_task.cancel()
                     try:
@@ -329,13 +503,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         pass
 
             if not should_logout:
-                # End of connection (socket will close after this message).
                 await websocket.send_text("Session ended.")
-                break
+                break  # Close socket
             else:
-                # Loop again to the login prompt (fresh authentication).
                 await websocket.send_text("🔄 Logged out. Returning to login.\n")
 
     except WebSocketDisconnect:
-        # Normal path when the client disconnects.
         print(f"🔌 User '{username if 'username' in locals() else 'unknown'}' disconnected.")
