@@ -123,7 +123,13 @@ SUDOERS_FILE="/etc/sudoers.d/webcli"
 echo "Installing sudoers file ..."
 cat > "$SUDOERS_FILE" <<'EOF'
 # /etc/sudoers.d/webcli
-webcli ALL=(ALL) NOPASSWD: /bin/systemctl restart *, /bin/systemctl status *, /usr/sbin/tcpdump
+
+# systemctl policies
+webcli ALL=(root) NOPASSWD: /bin/systemctl restart *
+webcli ALL=(root) NOPASSWD: /bin/systemctl status *
+
+# tcpdump policies
+webcli ALL=(root) NOPASSWD: /usr/local/sbin/webcli-tcpdump.sh
 EOF
 chmod 440 "$SUDOERS_FILE"
 

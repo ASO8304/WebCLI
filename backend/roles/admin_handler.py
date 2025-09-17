@@ -33,23 +33,15 @@ async def admin_handler(websocket, username):
 
         # Handle Ctrl+C interrupt
         if cmd == "__INTERRUPT__":
-            if running_task and not running_task.done():
-                await interrupt_current_process(websocket)
-                # Cancel current task; its done-callback will send the prompt
-                running_task.cancel()
-                try:
-                    await running_task
-                except asyncio.CancelledError:
-                    pass
-                running_task = None
-                # Do NOT request a prompt here; the callback already does it
-                need_prompt = False
-                continue
-            else:
+            stopped = await interrupt_current_process(websocket)
+            if not stopped:
                 await websocket.send_text("⚠️ No running command to interrupt.")
-                need_prompt = True
-                continue
+                # no manual running_task.cancel() here!
+            running_task = None
+            need_prompt = True
+            continue
 
+        
         # Prevent new command while one is running (unless it's an interrupt above)
         if running_task and not running_task.done():
             await websocket.send_text("⚠️ A command is already running. Interrupt it with Ctrl+C.")
@@ -107,8 +99,7 @@ async def admin_handler(websocket, username):
             def done_callback(task):
                 nonlocal running_task, need_prompt
                 running_task = None
-                # Send exactly one prompt when the task ends (success or cancel)
-                need_prompt = False
+                need_prompt = True
                 asyncio.create_task(send_prompt())
 
             running_task.add_done_callback(done_callback)
@@ -121,7 +112,7 @@ async def admin_handler(websocket, username):
             def done_callback(task):
                 nonlocal running_task, need_prompt
                 running_task = None
-                need_prompt = False
+                need_prompt = True
                 asyncio.create_task(send_prompt())
 
             running_task.add_done_callback(done_callback)
@@ -134,7 +125,7 @@ async def admin_handler(websocket, username):
             def done_callback(task):
                 nonlocal running_task, need_prompt
                 running_task = None
-                need_prompt = False
+                need_prompt = True
                 asyncio.create_task(send_prompt())
 
             running_task.add_done_callback(done_callback)
@@ -145,3 +136,4 @@ async def admin_handler(websocket, username):
             await websocket.send_text(f"❓ Unknown command: '{cmd}'")
             need_prompt = True
             continue
+

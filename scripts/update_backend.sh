@@ -8,8 +8,8 @@ set -euo pipefail
 SRC_DIR="../backend"        # project’s backend directory
 DEST_DIR="/opt/webcli"      # live backend location
 CONFIG_SRC="../config"      # config source directory
-CONFIG_DEST="/etc/webcli"  # config destination directory
-LOG_TAG="webcli-update"    # syslog tag
+CONFIG_DEST="/etc/webcli"   # config destination directory
+LOG_TAG="webcli-update"     # syslog tag
 RSYNC_OPTS="-av --delete --checksum"   # preserves perms, removes obsolete
 # ---------------------------------------------------------------------
 

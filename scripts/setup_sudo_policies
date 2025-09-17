@@ -1,0 +1,22 @@
+#!/bin/bash
+
+DEST_PATH="/etc/sudoers.d/webcli"  
+OWNER="root:root"                  
+PERMISSIONS="440"                  
+
+cat << 'EOF' > "$DEST_PATH"
+# /etc/sudoers.d/webcli
+
+# systemctl policies
+webcli ALL=(root) NOPASSWD: /bin/systemctl restart *
+webcli ALL=(root) NOPASSWD: /bin/systemctl status *
+
+# tcpdump policies
+webcli ALL=(root) NOPASSWD: /usr/local/sbin/webcli-tcpdump.sh
+EOF
+
+chown "$OWNER" "$DEST_PATH"
+
+chmod "$PERMISSIONS" "$DEST_PATH"
+
+echo "webcli sudo-config-file created at $DEST_PATH with owner $OWNER and permissions $PERMISSIONS."

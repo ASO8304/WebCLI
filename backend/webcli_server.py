@@ -30,7 +30,7 @@ from core.process_manager import get_current_process
 ALLOWED_ORIGINS = {
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "http://192.168.56.105:8080",
+    "http://192.168.56.107:8080",
 }
 
 
@@ -85,10 +85,8 @@ AUTH_BACKOFF_JITTER = float(os.getenv("WEBCLI_AUTH_BACKOFF_JITTER", "0.25"))  # 
 PH = PasswordHasher(
     time_cost=3,         # Number of iterations (passes) over the memory.
                          # Tune so hashing takes ~0.5–1s on your server.
-
     memory_cost=128 * 1024, # Memory per hash in KiB (here 128 MiB).
                             # Increase to harden against GPU/ASIC attacks.
-
     parallelism=2,       # Threads (lanes). Usually <= CPU cores.
 
     hash_len=64,         # Bytes in the derived key (doesn't affect cracking cost).
