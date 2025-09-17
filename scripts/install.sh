@@ -6,11 +6,13 @@ set -e
 # Constants
 APP_NAME="webcli_server"
 USERNAME="webcli"
+PCAP_USER="pcap"
 APP_DIR="/opt/webcli"
 CONF_DIR="/etc/webcli"
 LOG_DIR="/var/log/webcli"
 SERVICE_FILE_NAME="webcli.service"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_FILE_NAME}"
+WRAPPER_PATH="/usr/local/sbin/webcli-tcpdump.sh"
 PORT="12000"
 
 # Find the newest available python3.x
@@ -39,15 +41,34 @@ command -v tcpdump &>/dev/null || {
 
 VENV_DIR="${APP_DIR}/venv"
 
-# Create system user
+# Create system users
 echo "Creating system user '$USERNAME' ..."
 id -u "$USERNAME" &>/dev/null || useradd --system -m -s /usr/sbin/nologin "$USERNAME"
+
+echo "Creating system user '$PCAP_USER' ..."
+id -u "$PCAP_USER" &>/dev/null || useradd --system -s /usr/sbin/nologin "$PCAP_USER"
 
 # Create necessary directories
 echo "Creating application directories ..."
 mkdir -pv "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
-chown -R "$USERNAME:$USERNAME" "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
-chmod 750 "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
+chown -R "$USERNAME:$USERNAME" "$APP_DIR" "$CONF_DIR"
+chown root:$PCAP_USER "$LOG_DIR"
+chmod 770 "$LOG_DIR"
+
+# Create tcpdump wrapper script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "Deploying tcpdump wrapper ..."
+if [ -f "$SCRIPT_DIR/tcpdump_wrapper" ]; then
+  cp "$SCRIPT_DIR/tcpdump_wrapper" "$WRAPPER_PATH"
+  chown root:$PCAP_USER "$WRAPPER_PATH"
+  chmod 750 "$WRAPPER_PATH"
+else
+  echo "Warning: tcpdump_wrapper file not found in $SCRIPT_DIR"
+fi
+
+if [ -f "$SCRIPT_DIR/tcpdump_wrapper" ]; then
+  rm -f "$SCRIPT_DIR/tcpdump_wrapper"
+fi 
 
 # Create virtual environment and install dependencies
 echo "Building virtual environment ..."
@@ -58,7 +79,6 @@ sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install --upgrade pip
 sudo -u "$USERNAME" "$VENV_DIR/bin/pip" install -r requirements.txt
 
 # Deploy backend and config
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Deploying backend files ..."
 cp -rv "$SCRIPT_DIR/../backend/"* "$APP_DIR/"
 chown -R "$USERNAME:$USERNAME" "$APP_DIR"
@@ -100,15 +120,40 @@ ProtectSystem=off             # keep root FS writable (sudo/systemctl)
 ProtectHome=yes               # hide /home and /root by default
 PrivateTmp=true               # isolated /tmp and /var/tmp
 PrivateDevices=true           # minimal /dev (network still works)
-ReadWritePaths=$CONF_DIR      # allow edits to your config files only
+ReadWritePaths=$CONF_DIR $LOG_DIR
 
 # Extra hygiene that does NOT force NoNewPrivs=true
 InaccessiblePaths=/root       # prevent accidental access to /root
 LockPersonality=true          # block personality(2) trickery
 
 # Resource limits / resilience
-LimitNOFILE=16384
+
+# Cap CPU usage to 50% of one CPU
+CPUQuota=50%
+
+# Hard memory cap (process killed if exceeded)
+MemoryMax=500M
+
+# Soft memory cap (preferred target, may exceed temporarily)
+MemoryHigh=300M
+
+# Deny swap usage (optional, stricter isolation)
+MemorySwapMax=0
+
+# Max open files
+LimitNOFILE=8192
+
+# Max processes the service can spawn
+TasksMax=200
+
+# Kill service if startup hangs
+TimeoutStartSec=30s
+
+# Kill service if stop takes too long
+TimeoutStopSec=20s
+
 Restart=on-failure
+
 RestartSec=5
 
 [Install]
@@ -129,7 +174,7 @@ webcli ALL=(root) NOPASSWD: /bin/systemctl restart *
 webcli ALL=(root) NOPASSWD: /bin/systemctl status *
 
 # tcpdump policies
-webcli ALL=(root) NOPASSWD: /usr/local/sbin/webcli-tcpdump.sh
+webcli ALL=(root) NOPASSWD: /usr/local/sbin/webcli-tcpdump.sh *
 EOF
 chmod 440 "$SUDOERS_FILE"
 

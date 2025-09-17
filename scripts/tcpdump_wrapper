@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# -------------------------------------------------------------------
+# webcli-tcpdump.sh
+# Secure wrapper for tcpdump, to be called via sudo by the webcli service
+# Only whitelisted arguments allowed; enforces -Z dropuser and write path
+# -------------------------------------------------------------------
+
+set -euo pipefail
+
+WRAPPER_LOG="/var/log/webcli/tcpdump_wrapper.log"
+ALLOWED_WRITE_DIR="/var/log/webcli"
+DEFAULT_DROP_USER="pcap"
+
+# Detect tcpdump path
+if [ -x /usr/sbin/tcpdump ]; then
+    TCPDUMP_BIN="/usr/sbin/tcpdump"
+elif [ -x /usr/bin/tcpdump ]; then
+    TCPDUMP_BIN="/usr/bin/tcpdump"
+else
+    echo "tcpdump binary not found!" >&2
+    exit 1
+fi
+
+# At the top of webcli-tcpdump.sh, force -l if not present
+HAS_L=0
+for arg in "$@"; do
+    if [[ "$arg" == "-l" ]]; then
+        HAS_L=1
+        break
+    fi
+done
+
+if [[ $HAS_L -eq 0 ]]; then
+    set -- "-l" "$@"
+fi
+
+
+# --- Logging helper ---
+log() {
+    local msg="$*"
+    echo "$(date '+%F %T') [webcli-tcpdump-wrapper] $msg" >>"$WRAPPER_LOG"
+}
+
+# --- Security: clean environment ---
+unset IFS
+export PATH="/usr/sbin:/usr/bin:/bin"
+umask 027
+
+# --- Minimal allowed tcpdump flags ---
+ALLOWED_FLAGS="-i -n -nn -v -vv -vvv -c -s -X -XX -A -e -tt -ttt -q -Q -U -E -p -Z"
+FLAGS_WITH_ARG="-i -c -s -w -E -Q -Z"
+
+# --- Initialize ---
+args=()
+DROP_USER="$DEFAULT_DROP_USER"
+
+# --- Validate arguments ---
+i=1
+while [[ $i -le $# ]]; do
+    tok="${!i}"
+
+    # Reject shell metacharacters
+    if [[ "$tok" =~ [\&\;\|\`\$\<\>\*\?\(\)\{\}\[\]] ]]; then
+        echo "Invalid token: $tok" >&2
+        exit 1
+    fi
+
+    # Check if flag
+    case "$tok" in
+        -i|-n|-nn|-v|-vv|-vvv|-c|-s|-X|-XX|-A|-e|-tt|-ttt|-q|-Q|-U|-E|-p|-Z|-w)
+            args+=("$tok")
+            # If flag requires argument
+            if [[ " $FLAGS_WITH_ARG " == *" $tok "* ]]; then
+                ((i++))
+                if [[ $i -gt $# ]]; then
+                    echo "Flag $tok requires an argument" >&2
+                    exit 1
+                fi
+                val="${!i}"
+
+                # Special case: -w => must write inside ALLOWED_WRITE_DIR
+                if [[ "$tok" == "-w" ]]; then
+                    if [[ "$val" != /* ]]; then
+                        if [[ "$val" =~ ^[A-Za-z0-9._-]{1,200}$ ]]; then
+                            val="$ALLOWED_WRITE_DIR/$val"
+                        else
+                            echo "Invalid -w filename: $val" >&2
+                            exit 1
+                        fi
+                    else
+                        # absolute path must be under allowed dir
+                        norm=$(readlink -f "$val")
+                        if [[ "$norm" != $ALLOWED_WRITE_DIR/* ]]; then
+                            echo "-w output path must be under $ALLOWED_WRITE_DIR: $val" >&2
+                            exit 1
+                        fi
+                        val="$norm"
+                    fi
+                fi
+
+                # Special case: -Z => validate username
+                if [[ "$tok" == "-Z" ]]; then
+                    if [[ ! "$val" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+                        echo "Invalid -Z username: $val" >&2
+                        exit 1
+                    fi
+                    DROP_USER="$val"
+                fi
+
+                args+=("$val")
+            fi
+            ;;
+        *)
+            # keyword or numeric token
+            if [[ "$tok" =~ ^[A-Za-z0-9._:-]+$ ]] || [[ "$tok" =~ ^[0-9\.]+$ ]]; then
+                args+=("$tok")
+            else
+                echo "Unsupported or unsafe token: $tok" >&2
+                exit 1
+            fi
+            ;;
+    esac
+
+    ((i++))
+done
+
+# --- Ensure -Z is set ---
+if [[ ! " ${args[*]} " =~ " -Z " ]]; then
+    args+=("-Z" "$DROP_USER")
+fi
+
+# --- Logging (before dropping privileges) ---
+echo "[webcli-tcpdump-wrapper] Invoked by ${SUDO_USER:-unknown}: tcpdump ${args[*]}" >> /var/log/webcli/tcpdump_wrapper.log
+
+# --- Execute tcpdump safely with line-buffered output ---
+# exec stdbuf -oL "$TCPDUMP_BIN" "${args[@]}"
+exec "$TCPDUMP_BIN" "${args[@]}"
+                                                                                
