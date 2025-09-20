@@ -1,8 +1,8 @@
 {
-  "root": {
-    "username": "root",
+  "king": {
     "userid": 1,
-    "role": "root"
+    "username": "king",
+    "role": "admin"
   },
   "admin": {
     "userid": 2,

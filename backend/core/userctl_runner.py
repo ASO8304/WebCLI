@@ -171,9 +171,9 @@ async def cmd_edit(websocket, args):
 
     choice = await websocket.receive_text()
     if choice == "1":
-        await websocket.send_text(">>>PROMPT:Enter new password: ")
+        await websocket.send_text(">>>PROMPT:[PASSWORD]Enter new password: ")
         new_pw1 = await websocket.receive_text()
-        await websocket.send_text(">>>PROMPT:Re-enter new password: ")
+        await websocket.send_text(">>>PROMPT:[PASSWORD]Re-enter new password: ")
         new_pw2 = await websocket.receive_text()
 
         if new_pw1 != new_pw2:

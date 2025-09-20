@@ -109,10 +109,11 @@ ExecStart=$VENV_DIR/bin/uvicorn $APP_NAME:app --host 127.0.0.1 --port $PORT
 
 # --- Capabilities ----------------------------------
 # Needed by:
-#   · tcpdump  →  CAP_NET_RAW  CAP_NET_ADMIN  CAP_NET_BIND_SERVICE
+#   · tcpdump  →  CAP_NET_RAW  CAP_NET_ADMIN
 #   · sudo     →  CAP_SETUID   CAP_SETGID     CAP_AUDIT_WRITE
-CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE CAP_SETUID  CAP_SETGID  CAP_AUDIT_WRITE
-AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_SETUID  CAP_SETGID  CAP_AUDIT_WRITE
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+
 
 # --- Sandboxing that still permits sudo ------------
 NoNewPrivileges=false         # must remain false for sudo
