@@ -54,6 +54,7 @@ mkdir -pv "$APP_DIR" "$CONF_DIR" "$LOG_DIR"
 chown -R "$USERNAME:$USERNAME" "$APP_DIR" "$CONF_DIR"
 chown root:$PCAP_USER "$LOG_DIR"
 chmod 770 "$LOG_DIR"
+usermod -a -G $PCAP_USER $USERNAME
 
 # Create tcpdump wrapper script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -98,7 +99,7 @@ cat > "$SERVICE_PATH" <<EOF
 [Unit]
 Description=WebCLI backend (FastAPI + Uvicorn)
 After=network.target
-Documentation=https://your-repo-url/README.md
+Documentation=https://github.com/ASO8304/WebCLI
 
 [Service]
 User=$USERNAME
